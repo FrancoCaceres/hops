@@ -23,114 +23,34 @@ import io.hops.common.IDsMonitor;
 import io.hops.exception.StorageException;
 import io.hops.exception.StorageInitializtionException;
 import io.hops.log.NDCWrapper;
-import io.hops.metadata.hdfs.dal.AceDataAccess;
-import io.hops.metadata.hdfs.dal.GroupDataAccess;
-import io.hops.metadata.hdfs.dal.HashBucketDataAccess;
-import io.hops.metadata.hdfs.dal.UserDataAccess;
-import io.hops.metadata.hdfs.dal.UserGroupDataAccess;
-import io.hops.metadata.hdfs.dal.XAttrDataAccess;
-import io.hops.metadata.hdfs.entity.Ace;
-import io.hops.metadata.hdfs.entity.HashBucket;
-import io.hops.metadata.hdfs.entity.INodeMetadataLogEntry;
-import io.hops.metadata.hdfs.entity.StoredXAttr;
-import io.hops.metadata.hdfs.entity.XAttrMetadataLogEntry;
-import io.hops.resolvingcache.Cache;
-import io.hops.metadata.adaptor.BlockInfoDALAdaptor;
-import io.hops.metadata.adaptor.CacheDirectiveDALAdaptor;
-import io.hops.metadata.adaptor.CachePoolDALAdaptor;
-import io.hops.metadata.adaptor.DirectoryWithQuotaFeatureDALAdaptor;
-import io.hops.metadata.adaptor.INodeDALAdaptor;
-import io.hops.metadata.adaptor.LeaseDALAdaptor;
-import io.hops.metadata.adaptor.PendingBlockInfoDALAdaptor;
-import io.hops.metadata.adaptor.ReplicaUnderConstructionDALAdaptor;
+import io.hops.metadata.adaptor.*;
 import io.hops.metadata.common.EntityDataAccess;
-import io.hops.metadata.common.entity.ArrayVariable;
-import io.hops.metadata.common.entity.ByteArrayVariable;
-import io.hops.metadata.common.entity.IntVariable;
-import io.hops.metadata.common.entity.LongVariable;
-import io.hops.metadata.common.entity.StringVariable;
-import io.hops.metadata.common.entity.Variable;
+import io.hops.metadata.common.entity.*;
 import io.hops.metadata.election.dal.HdfsLeDescriptorDataAccess;
 import io.hops.metadata.election.dal.LeDescriptorDataAccess;
 import io.hops.metadata.election.entity.LeDescriptor.HdfsLeDescriptor;
-import io.hops.metadata.hdfs.dal.BlockChecksumDataAccess;
-import io.hops.metadata.hdfs.dal.BlockInfoDataAccess;
-import io.hops.metadata.hdfs.dal.CacheDirectiveDataAccess;
-import io.hops.metadata.hdfs.dal.CachePoolDataAccess;
-import io.hops.metadata.hdfs.dal.CachedBlockDataAccess;
-import io.hops.metadata.hdfs.dal.CorruptReplicaDataAccess;
-import io.hops.metadata.hdfs.dal.EncodingStatusDataAccess;
-import io.hops.metadata.hdfs.dal.ExcessReplicaDataAccess;
-import io.hops.metadata.hdfs.dal.INodeDataAccess;
-import io.hops.metadata.hdfs.dal.InvalidateBlockDataAccess;
-import io.hops.metadata.hdfs.dal.LeaseDataAccess;
-import io.hops.metadata.hdfs.dal.LeasePathDataAccess;
-import io.hops.metadata.hdfs.dal.OngoingSubTreeOpsDataAccess;
-import io.hops.metadata.hdfs.dal.MetadataLogDataAccess;
-import io.hops.metadata.hdfs.dal.PendingBlockDataAccess;
-import io.hops.metadata.hdfs.dal.QuotaUpdateDataAccess;
-import io.hops.metadata.hdfs.dal.ReplicaDataAccess;
-import io.hops.metadata.hdfs.dal.ReplicaUnderConstructionDataAccess;
-import io.hops.metadata.hdfs.dal.RetryCacheEntryDataAccess;
-import io.hops.metadata.hdfs.dal.UnderReplicatedBlockDataAccess;
-import io.hops.metadata.hdfs.dal.VariableDataAccess;
-import io.hops.metadata.hdfs.entity.BlockChecksum;
+import io.hops.metadata.hdfs.dal.*;
 import io.hops.metadata.hdfs.entity.CachedBlock;
-import io.hops.metadata.hdfs.entity.CorruptReplica;
-import io.hops.metadata.hdfs.entity.EncodingStatus;
-import io.hops.metadata.hdfs.entity.ExcessReplica;
-import io.hops.metadata.hdfs.entity.Replica;
-import io.hops.metadata.hdfs.entity.InvalidatedBlock;
-import io.hops.metadata.hdfs.entity.LeasePath;
-import io.hops.metadata.hdfs.entity.MetadataLogEntry;
-import io.hops.metadata.hdfs.entity.FileProvenanceEntry;
-import io.hops.metadata.hdfs.entity.QuotaUpdate;
-import io.hops.metadata.hdfs.entity.RetryCacheEntry;
-import io.hops.metadata.hdfs.entity.SubTreeOperation;
-import io.hops.metadata.hdfs.entity.UnderReplicatedBlock;
+import io.hops.metadata.hdfs.entity.*;
+import io.hops.resolvingcache.Cache;
 import io.hops.security.UsersGroups;
 import io.hops.transaction.EntityManager;
-import io.hops.transaction.context.AcesContext;
-import io.hops.transaction.context.BlockChecksumContext;
-import io.hops.transaction.context.BlockInfoContext;
-import io.hops.transaction.context.CacheDirectiveContext;
-import io.hops.transaction.context.CachePoolContext;
-import io.hops.transaction.context.CachedBlockContext;
-import io.hops.transaction.context.ContextInitializer;
-import io.hops.transaction.context.CorruptReplicaContext;
-import io.hops.transaction.context.EncodingStatusContext;
-import io.hops.transaction.context.EntityContext;
-import io.hops.transaction.context.ExcessReplicaContext;
-import io.hops.transaction.context.HashBucketContext;
-import io.hops.transaction.context.DirectoryWithQuotaFeatureContext;
-import io.hops.transaction.context.INodeContext;
-import io.hops.transaction.context.InvalidatedBlockContext;
-import io.hops.transaction.context.LeSnapshot;
-import io.hops.transaction.context.LeaseContext;
-import io.hops.transaction.context.LeasePathContext;
-import io.hops.transaction.context.MetadataLogContext;
-import io.hops.transaction.context.PendingBlockContext;
-import io.hops.transaction.context.FileProvenanceContext;
-import io.hops.transaction.context.QuotaUpdateContext;
-import io.hops.transaction.context.ReplicaContext;
-import io.hops.transaction.context.ReplicaUnderConstructionContext;
-import io.hops.transaction.context.RetryCacheEntryContext;
-import io.hops.transaction.context.SubTreeOperationsContext;
-import io.hops.transaction.context.TransactionsStats;
-import io.hops.transaction.context.UnderReplicatedBlockContext;
-import io.hops.transaction.context.VariableContext;
-import io.hops.transaction.context.XAttrContext;
+import io.hops.transaction.context.*;
 import io.hops.transaction.lock.LockFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.protocol.CacheDirective;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguousUnderConstruction;
 import org.apache.hadoop.hdfs.server.blockmanagement.PendingBlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.ReplicaUnderConstruction;
+import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
+import org.apache.hadoop.hdfs.server.namenode.CachePool;
+import org.apache.hadoop.hdfs.server.namenode.DirectoryWithQuotaFeature;
 import org.apache.hadoop.hdfs.server.namenode.INode;
-import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
-import org.apache.hadoop.hdfs.server.namenode.INodeFile;
-import org.apache.hadoop.hdfs.server.namenode.INodeSymlink;
 import org.apache.hadoop.hdfs.server.namenode.Lease;
+import org.apache.hadoop.hdfs.server.namenode.*;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -144,19 +64,6 @@ import java.net.URLClassLoader;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import org.apache.hadoop.hdfs.protocol.CacheDirective;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguousUnderConstruction;
-import org.apache.hadoop.hdfs.server.namenode.CachePool;
-import io.hops.metadata.hdfs.dal.FileProvenanceDataAccess;
-import io.hops.metadata.hdfs.dal.DirectoryWithQuotaFeatureDataAccess;
-import io.hops.metadata.hdfs.dal.EncryptionZoneDataAccess;
-import io.hops.metadata.hdfs.entity.EncryptionZone;
-import io.hops.transaction.context.EncryptionZoneContext;
-import io.hops.metadata.hdfs.dal.FileProvXAttrBufferDataAccess;
-import io.hops.metadata.hdfs.entity.FileProvXAttrBufferEntry;
-import io.hops.transaction.context.FileProvXAttrBufferContext;
-import org.apache.hadoop.hdfs.server.namenode.DirectoryWithQuotaFeature;
 
 public class HdfsStorageFactory {
 
@@ -254,6 +161,8 @@ public class HdfsStorageFactory {
     dataAccessAdaptors.clear();
     dataAccessAdaptors.put(BlockInfoDataAccess.class, new BlockInfoDALAdaptor(
         (BlockInfoDataAccess) getDataAccess(BlockInfoDataAccess.class)));
+    dataAccessAdaptors.put(S3ObjectInfoDataAccess.class, new S3ObjectInfoDALAdaptor(
+            (S3ObjectInfoDataAccess)getDataAccess(S3ObjectInfoDataAccess.class)));
     dataAccessAdaptors.put(ReplicaUnderConstructionDataAccess.class,
         new ReplicaUnderConstructionDALAdaptor(
             (ReplicaUnderConstructionDataAccess) getDataAccess(
@@ -283,8 +192,11 @@ public class HdfsStorageFactory {
 
         BlockInfoContext bic = new BlockInfoContext(
             (BlockInfoDataAccess) getDataAccess(BlockInfoDataAccess.class));
+        S3ObjectInfoContext s3oic = new S3ObjectInfoContext(
+                (S3ObjectInfoDataAccess) getDataAccess(S3ObjectInfoDataAccess.class) );
         entityContexts.put(BlockInfoContiguous.class, bic);
         entityContexts.put(BlockInfoContiguousUnderConstruction.class, bic);
+        entityContexts.put(S3ObjectInfoContiguous.class, s3oic);
         entityContexts.put(ReplicaUnderConstruction.class,
             new ReplicaUnderConstructionContext(
                 (ReplicaUnderConstructionDataAccess) getDataAccess(
@@ -341,6 +253,9 @@ public class HdfsStorageFactory {
         entityContexts.put(BlockChecksum.class, new BlockChecksumContext(
             (BlockChecksumDataAccess) getDataAccess(
                 BlockChecksumDataAccess.class)));
+        entityContexts.put(S3ObjectChecksum.class, new S3ObjectChecksumContext(
+                (S3ObjectChecksumDataAccess<S3ObjectChecksum>) getDataAccess(
+                        S3ObjectChecksum.class)));
         entityContexts.put(QuotaUpdate.class, new QuotaUpdateContext(
             (QuotaUpdateDataAccess) getDataAccess(
                 QuotaUpdateDataAccess.class)));

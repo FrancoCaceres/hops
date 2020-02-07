@@ -17,35 +17,29 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import com.google.common.base.Preconditions;
 import io.hops.exception.StorageException;
 import io.hops.exception.TransactionContextException;
 import io.hops.metadata.HdfsStorageFactory;
 import io.hops.metadata.hdfs.dal.*;
 import io.hops.metadata.hdfs.entity.FileInodeData;
 import io.hops.transaction.EntityManager;
-import static org.apache.hadoop.hdfs.protocol.HdfsConstantsClient.BLOCK_STORAGE_POLICY_ID_UNSPECIFIED;
-
 import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.fs.StorageType;
+import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.BlockStoragePolicy;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockCollection;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguousUnderConstruction;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
-import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
+import org.apache.hadoop.hdfs.protocol.S3Object;
+import org.apache.hadoop.hdfs.server.blockmanagement.*;
+import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
 import org.apache.hadoop.hdfs.server.common.GenerationStamp;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
-import com.google.common.base.Preconditions;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+
+import static org.apache.hadoop.hdfs.protocol.HdfsConstantsClient.BLOCK_STORAGE_POLICY_ID_UNSPECIFIED;
 
 /**
  * I-node for closed file.
@@ -79,6 +73,7 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
   private long size = 0;
   private boolean isFileStoredInDB = false;
   private Set<Block> removedBlocks = new HashSet<>();
+  private Set<S3Object> removedS3Objects = new HashSet<>();
   /**
    * @return true unconditionally.
    */
@@ -201,6 +196,21 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
     return blocks.toArray(blks);
   }
 
+  public S3ObjectInfoContiguous[] getS3Objects() throws StorageException, TransactionContextException {
+    if(!isFileStoredInS3()) {
+      FSNamesystem.LOG.debug("Stuffed Inode: getS3Objects(). the file is not stored in S3. Returning empty list of objects");
+      return S3ObjectInfoContiguous.EMPTY_ARRAY;
+    }
+
+    List<S3ObjectInfoContiguous> objects = getS3ObjectsOrderedByIndex();
+    if(objects == null) {
+      return S3ObjectInfoContiguous.EMPTY_ARRAY;
+    }
+
+    S3ObjectInfoContiguous[] objs = new S3ObjectInfoContiguous[objects.size()];
+    return objects.toArray(objs);
+  }
+
   public void storeFileDataInDB(byte[] data)
       throws StorageException {
 
@@ -312,6 +322,15 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
       index = maxBlk.getBlockIndex() + 1;
     }
     newblock.setBlockIndex(index);
+  }
+
+  void addS3Object(S3ObjectInfoContiguous newObject) throws StorageException, TransactionContextException {
+    S3ObjectInfoContiguous maxObject = findMaxS3Object();
+    int index = 0;
+    if(maxObject != null) {
+      index = maxObject.getObjectIndex() + 1;
+    }
+    newObject.setObjectIndex(index);
   }
 
   /**
@@ -497,6 +516,15 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
         blocks[blocks.length - 1];
   }
 
+  public S3ObjectInfoContiguous getLastS3Object() throws IOException {
+    if(isUnderConstruction()) {
+      return null;
+    }
+    S3ObjectInfoContiguous[] objects = getS3Objects();
+    return objects == null || objects.length == 0 ? null :
+            objects[objects.length - 1];
+  }
+
   @Override
   public int numBlocks() throws StorageException, TransactionContextException {
     BlockInfoContiguous[] blocks = getBlocks();
@@ -608,6 +636,12 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
         .find(BlockInfoContiguous.Finder.ByMaxBlockIndexForINode, this.getId());
     return maxBlk;
   }
+
+  public S3ObjectInfoContiguous findMaxS3Object() throws StorageException, TransactionContextException {
+    S3ObjectInfoContiguous maxObject = EntityManager
+            .find(S3ObjectInfoContiguous.Finder.ByMaxObjectIndexForINodeId, this.getId());
+    return maxObject;
+  }
   
   public int getGenerationStamp() {
     return generationStamp;
@@ -675,6 +709,32 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
     if (blocks != null) {
       Collections.sort(blocks, BlockInfoContiguous.Order.ByBlockIndex);
       return blocks;
+    } else {
+      return null;
+    }
+  }
+
+  protected List<S3ObjectInfoContiguous> getS3ObjectsOrderedByIndex()
+          throws TransactionContextException, StorageException {
+    if(!isInTree()) {
+      return null;
+    }
+    List<S3ObjectInfoContiguous> objectsInDB = (List<S3ObjectInfoContiguous>) EntityManager
+            .findList(S3ObjectInfoContiguous.Finder.ByINodeId, id);
+    List<S3ObjectInfoContiguous> objects = null;
+    if(objectsInDB != null) {
+      for(S3ObjectInfoContiguous object : objectsInDB) {
+        if(!removedS3Objects.contains(object)) {
+          if(objects == null) {
+            objects = new ArrayList<>();
+          }
+          objects.add(object);
+        }
+      }
+    }
+    if(objects != null) {
+      Collections.sort(objects, S3ObjectInfoContiguous.Order.ByS3ObjectIndex);
+      return objects;
     } else {
       return null;
     }

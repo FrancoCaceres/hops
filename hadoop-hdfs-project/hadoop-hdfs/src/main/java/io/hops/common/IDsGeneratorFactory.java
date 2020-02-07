@@ -49,6 +49,17 @@ public class IDsGeneratorFactory {
     }
   }
 
+  private class S3ObjectIDGen extends IDsGenerator{
+    S3ObjectIDGen(int batchSize, float threshold) {
+      super(batchSize, threshold);
+    }
+
+    @Override
+    CountersQueue.Counter incrementCounter(int inc) throws IOException {
+      return HdfsVariables.incrementS3ObjectIdCounter(inc);
+    }
+  }
+
   private class QuotaUpdateIDGen extends IDsGenerator{
     QuotaUpdateIDGen(int batchSize, float threshold) {
       super(batchSize, threshold);
@@ -89,9 +100,10 @@ public class IDsGeneratorFactory {
   private List<IDsGenerator> iDsGenerators = Lists.newArrayList();
 
   Boolean isConfigured = false;
-  void setConfiguration(int inodeIdsBatchSize, int blockIdsBatchSize,
+  void setConfiguration(int inodeIdsBatchSize, int blockIdsBatchSize, int s3objectIdsBatchSize,
       int quotaUpdateIdsBatchSize, int cacheDirectiveIdsBatchSize, float inodeIdsThreshold,
-      float blockIdsThreshold, float quotaUpdateIdsThreshold, float cacheDirectiveIdsThreshold) {
+      float blockIdsThreshold, float s3objectIdsThreshold, float quotaUpdateIdsThreshold,
+      float cacheDirectiveIdsThreshold) {
 
     synchronized (isConfigured) {
       if (isConfigured) {
@@ -108,6 +120,7 @@ public class IDsGeneratorFactory {
         quotaUpdateIdsThreshold));
     iDsGenerators.add(new CacheDirectiveIDGen(cacheDirectiveIdsBatchSize,
         cacheDirectiveIdsThreshold));
+    iDsGenerators.add(new S3ObjectIDGen(s3objectIdsBatchSize, s3objectIdsThreshold));
   }
 
   public long getUniqueINodeID(){
@@ -118,6 +131,10 @@ public class IDsGeneratorFactory {
 
   public long getUniqueBlockID(){
     return iDsGenerators.get(1).getUniqueID();
+  }
+
+  public long getUniqueS3ObjectID() {
+    return iDsGenerators.get(4).getUniqueID();
   }
 
   public int getUniqueQuotaUpdateID(){

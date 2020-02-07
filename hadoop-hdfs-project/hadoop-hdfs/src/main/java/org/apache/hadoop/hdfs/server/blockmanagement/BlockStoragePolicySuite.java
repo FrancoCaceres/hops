@@ -20,7 +20,6 @@ package org.apache.hadoop.hdfs.server.blockmanagement;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-
 import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdfs.protocol.BlockStoragePolicy;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
@@ -79,6 +78,11 @@ public class BlockStoragePolicySuite {
         HdfsConstants.COLD_STORAGE_POLICY_NAME,
         new StorageType[]{StorageType.ARCHIVE}, StorageType.EMPTY_ARRAY,
         StorageType.EMPTY_ARRAY);
+    final byte s3Id = HdfsConstants.S3_STORAGE_POLICY_ID;
+    policies[s3Id] = new BlockStoragePolicy(s3Id,
+            HdfsConstants.S3_STORAGE_POLICY_NAME,
+            new StorageType[]{StorageType.ARCHIVE}, StorageType.EMPTY_ARRAY,
+            StorageType.EMPTY_ARRAY);
     return new BlockStoragePolicySuite(hotId, policies);
   }
 

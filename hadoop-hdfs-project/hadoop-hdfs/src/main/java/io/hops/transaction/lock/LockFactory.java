@@ -81,12 +81,24 @@ public class LockFactory {
     return new BlockChecksumLock(target, blockIndex);
   }
 
+  public Lock getS3ObjectChecksumLock(String target, int objectIndex) {
+    return new S3ObjectChecksumLock(target, objectIndex);
+  }
+
   public Lock getBlockLock() {
     return new BlockLock();
+  }
+
+  public Lock getS3ObjectLock() {
+    return new S3ObjectLock();
   }
   
   public Lock getBlockLock(long blockId, INodeIdentifier inode) {
     return new BlockLock(blockId, inode);
+  }
+
+  public Lock getS3ObjectLock(long objectId, INodeIdentifier inode) {
+    return new S3ObjectLock(objectId, inode);
   }
 
   public Lock getReplicaLock() {
@@ -123,6 +135,10 @@ public class LockFactory {
   
   public Lock getSqlBatchedBlocksLock() {
     return new SqlBatchedBlocksLock();
+  }
+
+  public Lock getSqlBatchedS3ObjectsLock() {
+    return new SqlBatchedS3ObjectsLock();
   }
 
   public Lock getSqlBatchedReplicasLock() {

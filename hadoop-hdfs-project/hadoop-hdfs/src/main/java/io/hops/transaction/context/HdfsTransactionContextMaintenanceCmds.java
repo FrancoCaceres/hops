@@ -20,6 +20,7 @@ public enum HdfsTransactionContextMaintenanceCmds
   INodePKChanged,
   Concat,   //remove the old inode row and reinsert the row
   BlockDoesNotExist,
+  S3ObjectDoesNotExist,
   EmptyFile, // a file that doesn't have any blocks
   NoXAttrsAttached;
 }

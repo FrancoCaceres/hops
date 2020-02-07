@@ -19,10 +19,9 @@ import io.hops.exception.TransactionContextException;
 import io.hops.metadata.hdfs.entity.INodeIdentifier;
 import io.hops.transaction.EntityManager;
 import io.hops.transaction.context.HdfsTransactionContextMaintenanceCmds;
-import org.apache.hadoop.hdfs.server.namenode.INode;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 
 import java.io.IOException;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 
 class IndividualBlockLock extends BaseIndividualBlockLock {
 
@@ -45,6 +44,8 @@ class IndividualBlockLock extends BaseIndividualBlockLock {
     readBlock(blockId, inodeId);
   }
 
+  // TODO FCG Potential bug? The values announced are those of the current instance, not
+  //  the ones in readBlock(blkId, inodeId)
   private void announceBlockDoesNotExist() throws TransactionContextException {
     EntityManager.snapshotMaintenance
         (HdfsTransactionContextMaintenanceCmds.BlockDoesNotExist, blockId, inodeId);

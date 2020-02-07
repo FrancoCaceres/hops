@@ -22,18 +22,20 @@ import io.hops.common.CountersQueue;
 import io.hops.exception.StorageException;
 import io.hops.exception.TransactionContextException;
 import io.hops.leaderElection.VarsRegister;
-import io.hops.metadata.common.entity.ArrayVariable;
-import io.hops.metadata.common.entity.ByteArrayVariable;
-import io.hops.metadata.common.entity.IntVariable;
-import io.hops.metadata.common.entity.LongVariable;
-import io.hops.metadata.common.entity.Variable;
+import io.hops.metadata.common.entity.*;
 import io.hops.metadata.hdfs.dal.VariableDataAccess;
 import io.hops.transaction.handler.HDFSOperationType;
 import io.hops.transaction.handler.LightWeightRequestHandler;
 import org.apache.commons.io.output.ByteArrayOutputStream;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.protocol.RollingUpgradeInfo;
+import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos;
+import org.apache.hadoop.hdfs.protocolPB.PBHelper;
 import org.apache.hadoop.hdfs.security.token.block.BlockKey;
+import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 
@@ -41,17 +43,7 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hdfs.protocol.RollingUpgradeInfo;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos;
-import org.apache.hadoop.hdfs.protocolPB.PBHelper;
-import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
+import java.util.*;
 
 public class HdfsVariables {
 
@@ -106,6 +98,17 @@ public class HdfsVariables {
       @Override
       public Object performTask() throws IOException {
         return incrementCounter(Variable.Finder.BlockID, increment);
+      }
+    }.handle();
+  }
+
+  public static CountersQueue.Counter incrementS3ObjectIdCounter(
+          final long increment) throws IOException {
+    return (CountersQueue.Counter) new LightWeightRequestHandler(
+            HDFSOperationType.UPDATE_S3OBJECT_ID_COUNTER) {
+      @Override
+      public Object performTask() throws IOException {
+        return incrementCounter(Variable.Finder.S3ObjectId, increment);
       }
     }.handle();
   }
@@ -770,6 +773,8 @@ public class HdfsVariables {
   public static void registerDefaultValues(Configuration conf) {
     Variable.registerVariableDefaultValue(Variable.Finder.BlockID,
         new LongVariable(0).getBytes());
+    Variable.registerVariableDefaultValue(Variable.Finder.S3ObjectId,
+            new LongVariable(0).getBytes());
     Variable.registerVariableDefaultValue(Variable.Finder.INodeID,
         new LongVariable(2)
             .getBytes()); // 1 is taken by the root and zero is parent of the root

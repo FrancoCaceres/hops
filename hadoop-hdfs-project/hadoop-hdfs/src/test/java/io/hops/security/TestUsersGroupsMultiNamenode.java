@@ -25,6 +25,7 @@ import io.hops.metadata.hdfs.entity.EncodingPolicy;
 import io.hops.metadata.hdfs.entity.EncodingStatus;
 import io.hops.metadata.hdfs.entity.MetaStatus;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.crypto.CryptoProtocolVersion;
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclStatus;
@@ -52,10 +53,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
-import org.apache.hadoop.crypto.CryptoProtocolVersion;
-import org.apache.hadoop.fs.StorageType;
-import org.apache.hadoop.hdfs.protocol.LastBlockWithStatus;
-import org.apache.hadoop.io.retry.Idempotent;
+
 import static org.junit.Assert.*;
 
 public class TestUsersGroupsMultiNamenode {
@@ -226,6 +224,13 @@ public class TestUsersGroupsMultiNamenode {
         long fileId, byte[] data)
         throws AccessControlException, FileNotFoundException, SafeModeException,
         UnresolvedLinkException, IOException {
+      return false;
+    }
+
+    @Override
+    public boolean completeS3(String src, String clientName, String versionId, long size, long checksum, long fileId, final byte[] data)
+            throws AccessControlException, FileNotFoundException, SafeModeException,
+            UnresolvedLinkException, IOException {
       return false;
     }
 

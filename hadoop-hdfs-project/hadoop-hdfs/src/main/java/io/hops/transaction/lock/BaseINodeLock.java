@@ -24,28 +24,18 @@ import io.hops.exception.StorageException;
 import io.hops.exception.TransactionContextException;
 import io.hops.exception.TransientStorageException;
 import io.hops.metadata.hdfs.dal.INodeDataAccess;
-import io.hops.resolvingcache.Cache;
 import io.hops.metadata.hdfs.entity.INodeCandidatePrimaryKey;
 import io.hops.metadata.hdfs.entity.INodeIdentifier;
+import io.hops.resolvingcache.Cache;
 import io.hops.transaction.EntityManager;
-import static io.hops.transaction.lock.Lock.LOG;
-import java.io.IOException;
-import org.apache.hadoop.hdfs.server.namenode.*;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.protocol.HdfsConstantsClient;
 import org.apache.hadoop.hdfs.protocol.UnresolvedPathException;
-import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
+import org.apache.hadoop.hdfs.server.namenode.*;
+
+import java.io.IOException;
+import java.util.*;
 
 public abstract class BaseINodeLock extends Lock {
   private final Map<INode, TransactionLockTypes.INodeLockType>
@@ -334,6 +324,15 @@ public abstract class BaseINodeLock extends Lock {
       INodeFile file = (INodeFile)inode;
       return file.isFileStoredInDB();
     }else{
+      return false;
+    }
+  }
+
+  protected static boolean isStoredInS3(INode inode) {
+    if(inode instanceof INodeFile) {
+      INodeFile file = (INodeFile)inode;
+      return file.isFileStoredInS3();
+    } else {
       return false;
     }
   }

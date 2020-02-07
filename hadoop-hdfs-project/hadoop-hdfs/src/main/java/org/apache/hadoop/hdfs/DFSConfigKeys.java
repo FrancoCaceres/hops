@@ -18,14 +18,14 @@
 
 package org.apache.hadoop.hdfs;
 
-import java.util.concurrent.TimeUnit;
-
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockPlacementPolicyDefault;
 import org.apache.hadoop.hdfs.server.namenode.XAttrStorage;
 import org.apache.hadoop.http.HttpConfig;
+
+import java.util.concurrent.TimeUnit;
 
 /** 
  * This class contains constants for configuration keys and default values
@@ -60,6 +60,10 @@ public class DFSConfigKeys extends CommonConfigurationKeys {
   public static final int DFS_NAMENODE_BLOCKID_BATCH_SIZE_DEFAULT = 1000;
   public static final String DFS_NAMENODE_INODEID_UPDATE_THRESHOLD = "dfs.namenode.inodeid.updateThreshold";
   public static final float DFS_NAMENODE_INODEID_UPDATE_THRESHOLD_DEFAULT = (float) 0.5;
+  public static final String DFS_NAMENODE_S3OBJECTID_BATCH_SIZE = "dfs.namenode.s3objectid.batchsize";
+  public static final int DFS_NAMENODE_S3OBJECTID_BATCH_SIZE_DEFAULT = 1000;
+  public static final String DFS_NAMENODE_S3OBJECTID_UPDATE_THRESHOLD = "dfs.namenode.s3objectid.updateThreshold";
+  public static final float DFS_NAMENODE_S3OBJECTID_UPDATE_THRESHOLD_DEFAULT = (float) 0.5;
   public static final String DFS_NAMENODE_BLOCKID_UPDATE_THRESHOLD = "dfs.namenode.blockid.updateThreshold";
   public static final float DFS_NAMENODE_BLOCKID_UPDATE_THRESHOLD_DEFAULT = (float) 0.5;  
   public static final String DFS_NAMENODE_CACHE_DIRECTIVE_ID_BATCH_SIZE = "dfs.namenode.cache.directive.id.batchsize";
@@ -625,7 +629,14 @@ public class DFSConfigKeys extends CommonConfigurationKeys {
   // See HOPS-1525
   public static final String DFS_CLIENT_XCEIVER_SOCKET_FACTORY_CLASS_KEY = "dfs.client.xceiver.socket.factory.class";
   public static final String DEFAULT_DFS_CLIENT_XCEIVER_FACTORY_CLASS = "org.apache.hadoop.net.StandardSocketFactory";
-  
+
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_ENABLED_KEY = "dfs.namenode.object-storage.enabled";
+  public static final boolean DFS_NAMENODE_OBJECT_STORAGE_ENABLED_DEFAULT = false;
+  public static final String DFS_CLIENT_OBJECT_STORAGE_PART_SIZE_KEY = "dfs.client.object-storage.part-size";
+  public static final int DFS_CLIENT_OBJECT_STORAGE_PART_SIZE_DEFAULT = 5*1024*1024;
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_KEY = "dfs.namenode.object-storage.s3.bucket";
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY = "dfs.namenode.object-storage.s3.bucket.region";
+
   // WebHDFS retry policy
   @Deprecated
   public static final String  DFS_HTTP_CLIENT_RETRY_POLICY_ENABLED_KEY =

@@ -17,13 +17,14 @@
  */
 package org.apache.hadoop.hdfs.protocol;
 
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.server.datanode.DataNodeLayoutVersion;
 import org.apache.hadoop.hdfs.server.namenode.NameNodeLayoutVersion;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * *********************************
@@ -135,7 +136,10 @@ public class HdfsConstants {
    */
   public static final int DATANODE_LAYOUT_VERSION
       = DataNodeLayoutVersion.CURRENT_LAYOUT_VERSION;
-  
+
+  public static final String S3_STORAGE_POLICY_NAME = "S3";
+  public static final byte S3_STORAGE_POLICY_ID = 13;
+
   /*
   In accordance with HDFS:
 

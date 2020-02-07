@@ -2041,6 +2041,39 @@
   </property>
 
   <property>
+    <name>dfs.namenode.object-storage.enabled</name>
+    <value>false</value>
+    <description>
+      Whether to use a cloud object storage service to store files. Currently
+      only AWS is supported.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.s3.bucket</name>
+    <value>se.kth.fjcg.thesis</value>
+    <description>
+      S3 bucket to use.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.s3.bucket.region</name>
+    <value>eu-north-1</value>
+    <description>
+      Region where S3 bucket is located.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.client.object-storage.part-size</name>
+    <value>5242880</value>
+    <description>
+      Size of part to upload in bytes. Default is 5MB.
+    </description>
+  </property>
+
+  <property>
     <name>dfs.client.xceiver.socket.factory.class</name>
     <value>org.apache.hadoop.net.StandardSocketFactory</value>
     <description>Socket Factory implementation to use when DFSClient connects
