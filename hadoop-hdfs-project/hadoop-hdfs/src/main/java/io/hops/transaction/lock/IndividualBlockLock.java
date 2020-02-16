@@ -44,8 +44,6 @@ class IndividualBlockLock extends BaseIndividualBlockLock {
     readBlock(blockId, inodeId);
   }
 
-  // TODO FCG Potential bug? The values announced are those of the current instance, not
-  //  the ones in readBlock(blkId, inodeId)
   private void announceBlockDoesNotExist() throws TransactionContextException {
     EntityManager.snapshotMaintenance
         (HdfsTransactionContextMaintenanceCmds.BlockDoesNotExist, blockId, inodeId);

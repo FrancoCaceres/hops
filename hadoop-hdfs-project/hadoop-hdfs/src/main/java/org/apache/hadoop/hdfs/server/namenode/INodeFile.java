@@ -399,7 +399,19 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
   public final long computeFileSizeNotIncludingLastUcBlock() throws StorageException, TransactionContextException {
     return computeFileSize(false, false);
   }
-  
+
+  public final long computeS3FileSize() throws TransactionContextException, StorageException {
+    S3ObjectInfoContiguous[] objects = getS3Objects();
+    if(objects == null || objects.length == 0) {
+      return 0;
+    }
+    long size = 0;
+    for(S3ObjectInfoContiguous obj : objects) {
+      size += obj.getNumBytes();
+    }
+    return size;
+  }
+
   public long computeFileSize()
       throws StorageException, TransactionContextException {
     if(isFileStoredInDB){

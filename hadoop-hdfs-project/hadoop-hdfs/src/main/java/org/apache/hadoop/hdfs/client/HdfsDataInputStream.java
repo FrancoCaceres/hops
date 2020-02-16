@@ -17,20 +17,20 @@
  */
 package org.apache.hadoop.hdfs.client;
 
-import java.io.InputStream;
-
+import com.google.common.base.Preconditions;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.crypto.CryptoInputStream;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.hdfs.DFSInputStream;
+import org.apache.hadoop.hdfs.S3DFSInputStream;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
-import com.google.common.base.Preconditions;
 
 /**
  * The Hdfs implementation of {@link FSDataInputStream}.
@@ -39,6 +39,10 @@ import com.google.common.base.Preconditions;
 @InterfaceStability.Evolving
 public class HdfsDataInputStream extends FSDataInputStream {
   public HdfsDataInputStream(DFSInputStream in) throws IOException {
+    super(in);
+  }
+
+  public HdfsDataInputStream(S3DFSInputStream in) throws IOException {
     super(in);
   }
   
@@ -51,8 +55,10 @@ public class HdfsDataInputStream extends FSDataInputStream {
   private DFSInputStream getDFSInputStream() {
     if (in instanceof CryptoInputStream) {
       return (DFSInputStream) ((CryptoInputStream) in).getWrappedStream();
+    } else if(in instanceof DFSInputStream) {
+      return (DFSInputStream) in;
     }
-    return (DFSInputStream) in;
+    return null;
   }
 
   /**
@@ -70,21 +76,30 @@ public class HdfsDataInputStream extends FSDataInputStream {
    * Get the datanode from which the stream is currently reading.
    */
   public DatanodeInfo getCurrentDatanode() {
-    return getDFSInputStream().getCurrentDatanode();
+    if(getDFSInputStream() != null) {
+      return getDFSInputStream().getCurrentDatanode();
+    }
+    return null;
   }
 
   /**
    * Get the block containing the target position.
    */
   public ExtendedBlock getCurrentBlock() {
-    return getDFSInputStream().getCurrentBlock();
+    if(getDFSInputStream() != null) {
+      return getDFSInputStream().getCurrentBlock();
+    }
+    return null;
   }
 
   /**
    * Get the collection of blocks that has already been located.
    */
   public List<LocatedBlock> getAllBlocks() throws IOException {
-    return getDFSInputStream().getAllBlocks();
+    if(getDFSInputStream() != null) {
+      return getDFSInputStream().getAllBlocks();
+    }
+    return null;
   }
 
   /**
@@ -94,7 +109,12 @@ public class HdfsDataInputStream extends FSDataInputStream {
    * @return The visible length of the file.
    */
   public long getVisibleLength() throws IOException {
-    return getDFSInputStream().getFileLength();
+    if(getDFSInputStream() != null) {
+      return getDFSInputStream().getFileLength();
+    } else if(in instanceof S3DFSInputStream) {
+      return ((S3DFSInputStream) in).getFileLength();
+    }
+    return 0;
   }
   
   /**
@@ -104,10 +124,19 @@ public class HdfsDataInputStream extends FSDataInputStream {
    * bytes read through HdfsDataInputStream.
    */
   public DFSInputStream.ReadStatistics getReadStatistics() {
-    return getDFSInputStream().getReadStatistics();
+    if(getDFSInputStream() != null) {
+      return getDFSInputStream().getReadStatistics();
+    } else if(in instanceof S3DFSInputStream) {
+      return ((S3DFSInputStream) in).getReadStatistics();
+    }
+    return null;
   }
 
   public void clearReadStatistics() {
-    getDFSInputStream().clearReadStatistics();
+    if(getDFSInputStream() != null) {
+      getDFSInputStream().clearReadStatistics();
+    } else if(in instanceof S3DFSInputStream) {
+      ((S3DFSInputStream) in).getReadStatistics();
+    }
   }
 }

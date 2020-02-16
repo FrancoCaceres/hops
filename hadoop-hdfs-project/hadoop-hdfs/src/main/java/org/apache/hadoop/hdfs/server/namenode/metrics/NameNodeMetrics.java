@@ -23,12 +23,7 @@ import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NamenodeRole;
 import org.apache.hadoop.metrics2.MetricsSystem;
 import org.apache.hadoop.metrics2.annotation.Metric;
 import org.apache.hadoop.metrics2.annotation.Metrics;
-import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
-import org.apache.hadoop.metrics2.lib.MetricsRegistry;
-import org.apache.hadoop.metrics2.lib.MutableCounterLong;
-import org.apache.hadoop.metrics2.lib.MutableGaugeInt;
-import org.apache.hadoop.metrics2.lib.MutableQuantiles;
-import org.apache.hadoop.metrics2.lib.MutableRate;
+import org.apache.hadoop.metrics2.lib.*;
 import org.apache.hadoop.metrics2.source.JvmMetrics;
 
 import static org.apache.hadoop.metrics2.impl.MsInfo.ProcessName;
@@ -46,6 +41,7 @@ public class NameNodeMetrics {
   @Metric MutableCounterLong filesCreated;
   @Metric MutableCounterLong filesAppended;
   @Metric MutableCounterLong getBlockLocations;
+  @Metric MutableCounterLong getS3File;
   @Metric MutableCounterLong filesRenamed;
   @Metric MutableCounterLong filesTruncated;
   @Metric MutableCounterLong getListingOps;
@@ -147,6 +143,10 @@ public class NameNodeMetrics {
 
   public void incrGetBlockLocations() {
     getBlockLocations.incr();
+  }
+
+  public void incrGetS3File() {
+    getS3File.incr();
   }
 
   public void incrFilesCreated() {

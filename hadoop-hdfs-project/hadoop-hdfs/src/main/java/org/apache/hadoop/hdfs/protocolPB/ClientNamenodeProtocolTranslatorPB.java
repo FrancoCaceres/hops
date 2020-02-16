@@ -134,6 +134,19 @@ public class ClientNamenodeProtocolTranslatorPB
   }
 
   @Override
+  public S3File getS3File(String src, long offset, long length)
+          throws AccessControlException, FileNotFoundException, UnresolvedLinkException, IOException {
+    GetS3FileRequestProto req = GetS3FileRequestProto.newBuilder().setSrc(src).setOffset(offset)
+            .setLength(length).build();
+    try {
+      GetS3FileResponseProto res = rpcProxy.getS3File(null, req);
+      return res.hasS3File() ? PBHelper.convert(res.getS3File()) : null;
+    } catch (ServiceException e) {
+      throw ProtobufHelper.getRemoteException(e);
+    }
+  }
+
+  @Override
   public LocatedBlocks getMissingBlockLocations(String filePath)
       throws AccessControlException, FileNotFoundException,
       UnresolvedLinkException, IOException {

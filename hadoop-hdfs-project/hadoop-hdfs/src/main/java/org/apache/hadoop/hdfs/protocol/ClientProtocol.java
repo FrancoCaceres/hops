@@ -131,6 +131,11 @@ public interface ClientProtocol {
       throws AccessControlException, FileNotFoundException,
       UnresolvedLinkException, IOException;
 
+  @Idempotent
+  public S3File getS3File(String src, long offset, long length)
+          throws AccessControlException, FileNotFoundException,
+          UnresolvedLinkException, IOException;
+
   /**
    * Get the collection of missing or corrupted blocks for the given
    * erasure-coded file. This might not necessarily be up-to-date as it depends

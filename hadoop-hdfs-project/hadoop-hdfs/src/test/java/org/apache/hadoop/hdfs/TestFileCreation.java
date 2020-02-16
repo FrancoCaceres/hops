@@ -240,8 +240,6 @@ public class TestFileCreation {
     if (simulatedStorage) {
       SimulatedFSDataset.setFactory(conf);
     }
-    // FCG testing AWS
-    conf.setBoolean(DFS_NAMENODE_OBJECT_STORAGE_ENABLED_KEY, true);
     MiniDFSCluster cluster =
         new MiniDFSCluster.Builder(conf).checkDataNodeHostConfig(true).build();
     FileSystem fs = cluster.getFileSystem();

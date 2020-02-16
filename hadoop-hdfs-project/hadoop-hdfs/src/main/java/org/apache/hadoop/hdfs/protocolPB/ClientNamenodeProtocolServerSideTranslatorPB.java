@@ -205,6 +205,21 @@ public class ClientNamenodeProtocolServerSideTranslatorPB
   }
 
   @Override
+  public GetS3FileResponseProto getS3File(RpcController controller, GetS3FileRequestProto req)
+          throws ServiceException {
+    try {
+      S3File s3File  = server.getS3File(req.getSrc(), req.getOffset(), req.getLength());
+      GetS3FileResponseProto.Builder builder = GetS3FileResponseProto.newBuilder();
+      if(builder != null) {
+        builder.setS3File(PBHelper.convert(s3File));
+      }
+      return builder.build();
+    } catch (IOException e) {
+      throw new ServiceException(e);
+    }
+  }
+
+  @Override
   public ClientNamenodeProtocolProtos.GetMissingBlockLocationsResponseProto getMissingBlockLocations(
       RpcController controller,
       ClientNamenodeProtocolProtos.GetMissingBlockLocationsRequestProto req)

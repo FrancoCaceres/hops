@@ -827,6 +827,27 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     }
   }
 
+  public S3File getS3File(String src, long start) throws IOException {
+    return getS3File(src, start, 0); // TODO FCG add support for custom ranges
+  }
+
+  @VisibleForTesting
+  public S3File getS3File(String src, long start, long length) throws IOException {
+    try(TraceScope ignored = newPathTraceScope("getS3File", src)) {
+      return callGetS3File(namenode, src, start, length);
+    }
+  }
+
+  static S3File callGetS3File(ClientProtocol namenode, String src, long start, long length) throws IOException {
+    try {
+      return namenode.getS3File(src, start, length);
+    } catch(RemoteException re) {
+      throw re.unwrapRemoteException(AccessControlException.class,
+              FileNotFoundException.class,
+              UnresolvedPathException.class);
+    }
+  }
+
   /**
    * Recover a file's lease
    * @param src a file's path
@@ -1044,6 +1065,24 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     }
   }
 
+  public HdfsDataInputStream createWrappedInputStream(S3DFSInputStream s3dis) throws IOException {
+    final FileEncryptionInfo feInfo = s3dis.getFileEncryptionInfo();
+    if (feInfo != null) {
+      // File is encrypted, wrap the stream in a crypto stream.
+      // Currently only one version, so no special logic based on the version #
+      getCryptoProtocolVersion(feInfo);
+      final CryptoCodec codec = getCryptoCodec(conf, feInfo);
+      final KeyVersion decrypted = decryptEncryptedDataEncryptionKey(feInfo);
+      final CryptoInputStream cryptoIn =
+              new CryptoInputStream(s3dis, codec, decrypted.getMaterial(),
+                      feInfo.getIV());
+      return new HdfsDataInputStream(cryptoIn);
+    } else {
+      // No FileEncryptionInfo so no encryption.
+      return new HdfsDataInputStream(s3dis);
+    }
+  }
+
   /**
    * Wraps the stream in a CryptoOutputStream if the underlying file is
    * encrypted.
@@ -1108,6 +1147,22 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     //    Get block info from namenode
     try (TraceScope ignored = newPathTraceScope("newDFSInputStream", src)) {
       return new DFSInputStream(this, src, verifyChecksum, dfsClientConf.getForceClientToWriteSFToDisk());
+    }
+  }
+
+  public S3DFSInputStream openS3(String src, int buffersize, boolean verifyChecksum) throws IOException {
+    checkOpen();
+    try (TraceScope ignored = newPathTraceScope("newS3DFSInputStream", src)) {
+      return new S3DFSInputStream(this, src, verifyChecksum);
+    }
+  }
+
+  public HdfsDataInputStream openWrapped(String src, int buffersize, boolean verifyChecksum)
+          throws IOException, UnresolvedPathException {
+    if(isObjectStorageEnabled()) {
+      return createWrappedInputStream(openS3(src, buffersize, verifyChecksum));
+    } else {
+      return createWrappedInputStream(open(src, buffersize, verifyChecksum));
     }
   }
 

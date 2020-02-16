@@ -27,6 +27,7 @@ public enum HDFSOperationType implements OperationType {
   SET_OWNER,
   SET_OWNER_SUBTREE,
   GET_BLOCK_LOCATIONS,
+  GET_S3_FILE,
   GET_STATS,
   CONCAT,
   TRUNCATE,

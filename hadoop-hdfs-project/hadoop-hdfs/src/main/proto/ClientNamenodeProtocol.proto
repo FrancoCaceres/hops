@@ -54,6 +54,16 @@ message GetBlockLocationsResponseProto {
   optional LocatedBlocksProto locations = 1;
 }
 
+message GetS3FileRequestProto {
+  required string src = 1; // file name
+  required uint64 offset = 2; // range start offset
+  required uint64 length = 3; // range length
+}
+
+message GetS3FileResponseProto {
+  optional S3FileProto s3File = 1;
+}
+
 message GetMissingBlockLocationsRequestProto {
   required string filePath = 1;
 }
@@ -829,6 +839,7 @@ message InvCachesUserAddedToGroupResponseProto { }
 
 service ClientNamenodeProtocol {
   rpc getBlockLocations (GetBlockLocationsRequestProto) returns (GetBlockLocationsResponseProto);
+  rpc getS3File (GetS3FileRequestProto) returns (GetS3FileResponseProto);
   rpc getMissingBlockLocations (GetMissingBlockLocationsRequestProto) returns (GetMissingBlockLocationsResponseProto);
   rpc addBlockChecksum (AddBlockChecksumRequestProto) returns (AddBlockChecksumResponseProto);
   rpc getBlockChecksum (GetBlockChecksumRequestProto) returns (GetBlockChecksumResponseProto);

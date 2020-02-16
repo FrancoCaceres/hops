@@ -1014,6 +1014,18 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       this.blocks = blocks;
     }
   }
+
+  public static class GetS3FileResult {
+    final boolean updateAccessTime;
+    public final S3File s3File;
+    boolean updateAccessTime() {
+      return updateAccessTime;
+    }
+    private GetS3FileResult(boolean updateAccessTime, S3File s3File) {
+      this.updateAccessTime = updateAccessTime;
+      this.s3File = s3File;
+    }
+  }
   
   /**
    * Get block locations within the specified range.
@@ -1043,6 +1055,25 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       throw e;
     }
     logAuditEvent(true, "open", srcArg);
+    return result;
+  }
+
+  public S3File getS3File(final String clientMachine, final String srcArg, final long offset, final long length)
+    throws IOException {
+    S3File result = null;
+    try {
+      try {
+        result = getS3FileWithLock(clientMachine, srcArg, offset, length, INodeLockType.READ);
+      } catch (LockUpgradeException e) {
+        LOG.debug("getS3File: Encountered LockUpgradeException while reading " + srcArg + "." +
+                " Retrying the operation using exclusive locks");
+        result = getS3FileWithLock(clientMachine, srcArg, offset, length, INodeLockType.WRITE);
+      }
+    } catch (AccessControlException e) {
+      logAuditEvent(false, "openS3", srcArg);
+      throw e;
+    }
+    logAuditEvent(true, "openS3", srcArg);
     return result;
   }
 
@@ -1114,6 +1145,60 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
     return (LocatedBlocks) getBlockLocationsHandler.handle(this);
 
+  }
+
+  // TODO FCG Add support for range-based file fetch (i.e. consider offset & length)
+  S3File getS3FileWithLock(final String clientMachine, final String srcArg, final long offset, final long length,
+                           final INodeLockType lockType) throws IOException {
+    byte[][] pathComponents = FSDirectory.getPathComponentsForReservedPath(srcArg);
+    final String src = dir.resolvePath(getPermissionChecker(), srcArg, pathComponents);
+    final boolean isSuperUser =  dir.getPermissionChecker().isSuperUser();
+    HopsTransactionalRequestHandler getS3FileHandler = new HopsTransactionalRequestHandler(
+            HDFSOperationType.GET_S3_FILE, src) {
+      @Override
+      public void acquireLock(TransactionLocks locks) throws IOException {
+        LockFactory lf = getInstance();
+        INodeLock il = lf.getINodeLock(lockType, INodeResolveType.PATH, src)
+                .setNameNodeID(nameNode.getId())
+                .setActiveNameNodes(nameNode.getActiveNameNodes().getActiveNodes())
+                .skipReadingQuotaAttr(!dir.isQuotaEnabled());
+        locks.add(il).add(lf.getBlockLock())
+                .add(lf.getBlockRelated(BLK.RE, BLK.ER, BLK.CR, BLK.UC, BLK.CA));
+        locks.add(lf.getS3ObjectLock());
+        locks.add(lf.getAcesLock());
+        locks.add(lf.getEZLock());
+        if(isSuperUser) {
+          locks.add(lf.getXAttrLock());
+        }else {
+          locks.add(lf.getXAttrLock(FSDirXAttrOp.XATTR_FILE_ENCRYPTION_INFO));
+        }
+      }
+
+      @Override
+      public Object performTask() throws IOException {
+        GetS3FileResult res = getS3FileInt(srcArg, src, offset, length);
+
+        if(res.updateAccessTime()) {
+          final long now = now();
+          try {
+            final INodesInPath iip = dir.getINodesInPath(src, true);
+            INode inode = iip.getLastINode();
+            boolean updateAccessTime = inode != null &&
+                    now > inode.getAccessTime() + getAccessTimePrecision();
+            if (!isInSafeMode() && updateAccessTime) {
+              boolean changed = FSDirAttrOp.setTimes(dir,
+                      inode, -1, now, false);
+            }
+          } catch (Throwable e) {
+            LOG.warn("Failed to update the access time of " + src, e);
+          }
+        }
+
+        return res.s3File;
+      }
+    };
+
+    return (S3File) getS3FileHandler.handle(this);
   }
 
   /**
@@ -1189,6 +1274,61 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
     inodeFile.logProvenanceEvent(getNamenodeId(), FileProvenanceEntry.Operation.getBlockLocations());
     return ret;
+  }
+
+  private GetS3FileResult getS3FileInt(final String srcArg, final String src, final long offset, final long length) throws IOException {
+    if(offset < 0) {
+      throw new HadoopIllegalArgumentException(
+              "Negative offset is not supported. File: " + src);
+    }
+    if (length < 0) {
+      throw new HadoopIllegalArgumentException(
+              "Negative length is not supported. File: " + src);
+    }
+
+    GetS3FileResult res;
+    final INodeFile inodeFile = INodeFile.valueOf(dir.getINode(src), src);
+    if(!inodeFile.isFileStoredInS3()) {
+      throw new UnsupportedActionException("Cannot get a block-based file as an S3-based file");
+    } else if (inodeFile.isFileStoredInDB()) {
+      LOG.debug("SMALL_FILE The file is stored in the database. Returning Phantom Blocks");
+      // TODO FCG Create and return phantom s3File
+      throw new UnsupportedOperationException("Phantom S3 file not implemented");
+    } else {
+      FSPermissionChecker pc = getPermissionChecker();
+
+      final INodesInPath iip = dir.getINodesInPath(src, true);
+      final INodeFile inode = INodeFile.valueOf(iip.getLastINode(), src);
+
+      if (isPermissionEnabled) {
+        dir.checkPathAccess(pc, iip, FsAction.READ);
+        checkUnreadableBySuperuser(pc, inode);
+      }
+
+      final long fileSize = inode.computeS3FileSize();
+
+      final FileEncryptionInfo feInfo =
+              FSDirectory.isReservedRawName(srcArg) ?
+                      null : dir.getFileEncryptionInfo(inode, iip);
+
+      final S3File s3File = createS3File(inode.getS3Objects(), fileSize, offset, length, feInfo);
+
+      final long now = now();
+      boolean updateAccessTime = isAccessTimeSupported() && !isInSafeMode()
+              && now > inode.getAccessTime() + getAccessTimePrecision();
+      res = new GetS3FileResult(updateAccessTime, s3File);
+    }
+    inodeFile.logProvenanceEvent(getNamenodeId(), FileProvenanceEntry.Operation.getS3File());
+    return res;
+  }
+
+  private S3File createS3File(final S3ObjectInfoContiguous[] objects, final long fileSize, final long offset,
+                              final long length, FileEncryptionInfo feInfo) throws IOException {
+    if(objects == null) {
+      return null;
+    } else {
+      return new S3File(fileSize, Arrays.asList(objects), false, feInfo, null);
+    }
   }
 
   /**

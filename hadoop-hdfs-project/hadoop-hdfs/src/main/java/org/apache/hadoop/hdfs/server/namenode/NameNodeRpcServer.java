@@ -425,6 +425,13 @@ class NameNodeRpcServer implements NamenodeProtocols {
     return namesystem
         .getBlockLocations(getClientMachine(), src, offset, length);
   }
+
+  @Override
+  public S3File getS3File(String src, long offset, long length) throws IOException {
+    checkNNStartup();
+    metrics.incrGetS3File();
+    return namesystem.getS3File(getClientMachine(), src, offset, length);
+  }
   
   @Override // ClientProtocol
   public FsServerDefaults getServerDefaults() throws IOException {

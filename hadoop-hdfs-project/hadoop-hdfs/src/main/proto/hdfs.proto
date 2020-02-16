@@ -42,6 +42,20 @@ message ExtendedBlockProto {
 }
 
 /**
+ * Represents an S3 object which is part of a file.
+ */
+message S3ObjectProto {
+  required uint64 objectId = 1;
+  required uint32 objectIndex = 2;
+  required string region = 3;
+  required string bucket = 4;
+  required string key = 5;
+  required string versionId = 6;
+  required uint64 numBytes = 7;
+  optional uint64 checksum = 8 [default = 0];
+}
+
+/**
  * Identifies a Datanode
  */
 message DatanodeIDProto {
@@ -315,6 +329,17 @@ message LocatedBlocksProto {
   optional LocatedBlockProto lastBlock = 4;
   required bool isLastBlockComplete = 5;
   optional FileEncryptionInfoProto fileEncryptionInfo = 6;
+}
+
+/**
+ * A set of S3 objects representing a file
+ */
+message S3FileProto {
+  required uint64 fileLength = 1;
+  repeated S3ObjectProto objects = 2;
+  required bool underConstruction = 3;
+  optional FileEncryptionInfoProto fileEncryptionInfo = 4;
+  optional bytes data = 5;
 }
 
 /**

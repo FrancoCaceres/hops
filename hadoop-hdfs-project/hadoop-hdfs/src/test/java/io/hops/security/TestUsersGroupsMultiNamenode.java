@@ -89,6 +89,11 @@ public class TestUsersGroupsMultiNamenode {
     }
 
     @Override
+    public S3File getS3File(String src, long offset, long length) throws AccessControlException, FileNotFoundException, UnresolvedLinkException, IOException {
+      return null;
+    }
+
+    @Override
     public LocatedBlocks getMissingBlockLocations(String filePath)
         throws AccessControlException, FileNotFoundException,
         UnresolvedLinkException, IOException {

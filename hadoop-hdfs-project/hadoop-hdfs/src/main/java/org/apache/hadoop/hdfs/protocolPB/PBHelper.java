@@ -17,15 +17,7 @@
  */
 package org.apache.hadoop.hdfs.protocolPB;
 
-import static com.google.common.base.Preconditions.checkNotNull;
 import com.google.common.base.Preconditions;
-import static org.apache.hadoop.hdfs.protocol.proto.EncryptionZonesProtos
-    .EncryptionZoneProto;
-import static org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.CipherSuiteProto;
-import static org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.CryptoProtocolVersionProto;
-
-
-import org.apache.hadoop.fs.CacheFlag;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Shorts;
 import com.google.protobuf.ByteString;
@@ -37,131 +29,34 @@ import io.hops.leader_election.node.SortedActiveNodeListPBImpl;
 import io.hops.leader_election.proto.ActiveNodeProtos.ActiveNodeProto;
 import io.hops.metadata.hdfs.entity.EncodingPolicy;
 import io.hops.metadata.hdfs.entity.EncodingStatus;
-import org.apache.hadoop.fs.ContentSummary;
-import org.apache.hadoop.fs.CreateFlag;
-import org.apache.hadoop.fs.FsServerDefaults;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.StorageType;
-import org.apache.hadoop.fs.XAttr;
-import org.apache.hadoop.fs.XAttrSetFlag;
-import org.apache.hadoop.fs.permission.AclEntry;
-import org.apache.hadoop.fs.permission.AclEntryScope;
-import org.apache.hadoop.fs.permission.AclEntryType;
-import org.apache.hadoop.fs.permission.AclStatus;
-import org.apache.hadoop.fs.permission.FsAction;
-import org.apache.hadoop.hdfs.server.protocol.*;
-import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.CacheDirectiveEntry;
-import org.apache.hadoop.hdfs.protocol.CacheDirectiveStats;
-import org.apache.hadoop.hdfs.protocol.CachePoolEntry;
-import org.apache.hadoop.hdfs.protocol.CachePoolInfo;
-import org.apache.hadoop.hdfs.protocol.CachePoolStats;
-import org.apache.hadoop.hdfs.protocol.BlockStoragePolicy;
 import org.apache.hadoop.crypto.CipherOption;
 import org.apache.hadoop.crypto.CipherSuite;
-import org.apache.hadoop.hdfs.protocol.ClientProtocol;
-import org.apache.hadoop.hdfs.protocol.CorruptFileBlocks;
 import org.apache.hadoop.crypto.CryptoProtocolVersion;
-import org.apache.hadoop.hdfs.protocol.DatanodeID;
-import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
-import org.apache.hadoop.hdfs.protocol.CacheDirectiveInfo;
+import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.permission.*;
+import org.apache.hadoop.hdfs.protocol.*;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo.AdminStates;
-import org.apache.hadoop.hdfs.protocol.DatanodeLocalInfo;
-import org.apache.hadoop.hdfs.protocol.DirectoryListing;
-import org.apache.hadoop.hdfs.protocol.EncryptionZone;
-import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
-import org.apache.hadoop.fs.FileEncryptionInfo;
-import org.apache.hadoop.hdfs.protocol.FsPermissionExtension;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants.DatanodeReportType;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants.RollingUpgradeAction;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants.SafeModeAction;
-import org.apache.hadoop.hdfs.protocol.HdfsConstantsClient;
-import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
-import org.apache.hadoop.hdfs.protocol.HdfsLocatedFileStatus;
-import org.apache.hadoop.hdfs.protocol.LastUpdatedContentSummary;
-import org.apache.hadoop.hdfs.protocol.LocatedBlock;
-import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
-import org.apache.hadoop.hdfs.protocol.RollingUpgradeInfo;
-import org.apache.hadoop.hdfs.protocol.RollingUpgradeStatus;
 import org.apache.hadoop.hdfs.protocol.proto.AclProtos.AclEntryProto;
-import org.apache.hadoop.hdfs.protocol.proto.AclProtos.AclStatusProto;
 import org.apache.hadoop.hdfs.protocol.proto.AclProtos.AclEntryProto.AclEntryScopeProto;
 import org.apache.hadoop.hdfs.protocol.proto.AclProtos.AclEntryProto.AclEntryTypeProto;
+import org.apache.hadoop.hdfs.protocol.proto.AclProtos.AclStatusProto;
 import org.apache.hadoop.hdfs.protocol.proto.AclProtos.GetAclStatusResponseProto;
 import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.CacheDirectiveEntryProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.CacheDirectiveInfoExpirationProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.CacheDirectiveStatsProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.CacheFlagProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.CachePoolEntryProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.CachePoolInfoProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.CachePoolStatsProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.CreateFlagProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.DatanodeReportTypeProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.GetFsStatsResponseProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.RollingUpgradeActionProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.RollingUpgradeInfoProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.SafeModeActionProto;
-import org.apache.hadoop.hdfs.protocol.proto.DataTransferProtos.ShortCircuitShmSlotProto;
+import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.*;
 import org.apache.hadoop.hdfs.protocol.proto.DataTransferProtos.ShortCircuitShmIdProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.CacheDirectiveInfoProto;
-import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.LastUpdatedContentSummaryProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.ActiveNamenodeListResponseProto;
+import org.apache.hadoop.hdfs.protocol.proto.DataTransferProtos.ShortCircuitShmSlotProto;
 import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.BalancerBandwidthCommandProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.BlockCommandProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.BlockIdCommandProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.HashMismatchCommandProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.AllStorageMismatchingHashes;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.StorageMismatchingHashes;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.BlockRecoveryCommandProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.DatanodeCommandProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.DatanodeRegistrationProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DatanodeStorageProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DatanodeStorageProto.StorageState;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.FinalizeCommandProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.KeyUpdateCommandProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.ReceivedDeletedBlockInfoProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.RegisterCommandProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.VolumeFailureSummaryProto;
-import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.BlockReportContextProto;
+import org.apache.hadoop.hdfs.protocol.proto.DatanodeProtocolProtos.*;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.BlockKeyProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.BlockProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.BlockWithLocationsProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.BlocksWithLocationsProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.CipherOptionProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.ContentSummaryProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.CorruptFileBlocksProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DataEncryptionKeyProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DatanodeIDProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DatanodeInfoProto;
+import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.*;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DatanodeInfoProto.AdminState;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DatanodeInfosProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DatanodeLocalInfoProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DirectoryListingProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.ExportedBlockKeysProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.ExtendedBlockProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.FsPermissionProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.FsServerDefaultsProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.HdfsFileStatusProto;
+import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.DatanodeStorageProto.StorageState;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.HdfsFileStatusProto.FileType;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.LocatedBlockProto;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.LocatedBlockProto.Builder;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.LocatedBlocksProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.StorageTypeProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.NamenodeCommandProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.NamenodeRegistrationProto;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.NamenodeRegistrationProto.NamenodeRoleProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.NamespaceInfoProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.RecoveringBlockProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.ReplicaStateProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.RollingUpgradeStatusProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.StorageInfoProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.StorageReportProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.StorageTypesProto;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.StorageUuidsProto;
 import org.apache.hadoop.hdfs.protocol.proto.XAttrProtos.GetXAttrsResponseProto;
 import org.apache.hadoop.hdfs.protocol.proto.XAttrProtos.ListXAttrsResponseProto;
 import org.apache.hadoop.hdfs.protocol.proto.XAttrProtos.XAttrProto;
@@ -176,21 +71,11 @@ import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NodeType;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.ReplicaState;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
-import org.apache.hadoop.hdfs.server.protocol.BalancerBandwidthCommand;
-import org.apache.hadoop.hdfs.server.protocol.BlockCommand;
-import org.apache.hadoop.hdfs.server.protocol.BlockIdCommand;
-import org.apache.hadoop.hdfs.server.protocol.BlockRecoveryCommand;
+import org.apache.hadoop.hdfs.server.protocol.*;
 import org.apache.hadoop.hdfs.server.protocol.BlockRecoveryCommand.RecoveringBlock;
-import org.apache.hadoop.hdfs.server.protocol.BlockReport;
-import org.apache.hadoop.hdfs.server.protocol.Bucket;
-import org.apache.hadoop.hdfs.server.protocol.BlockReportContext;
-import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations.BlockWithLocations;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeStorage.State;
 import org.apache.hadoop.hdfs.server.protocol.ReceivedDeletedBlockInfo.BlockStatus;
-import org.apache.hadoop.hdfs.server.protocol.RegisterCommand;
-import org.apache.hadoop.hdfs.server.protocol.StorageReport;
-import org.apache.hadoop.hdfs.server.protocol.VolumeFailureSummary;
 import org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm.ShmId;
 import org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm.SlotId;
 import org.apache.hadoop.hdfs.util.ExactSizeInputStream;
@@ -208,7 +93,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
-import org.apache.hadoop.hdfs.protocol.BlockListAsLongs;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.hadoop.hdfs.protocol.proto.EncryptionZonesProtos.EncryptionZoneProto;
+import static org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.*;
 
 /**
  * Utilities for converting protobuf classes to and from implementation classes
@@ -672,6 +560,20 @@ public class PBHelper {
     return builder.build();
   }
 
+  public static S3ObjectProto convert(S3Object obj) {
+    if(obj == null) return null;
+    S3ObjectProto.Builder builder = S3ObjectProto.newBuilder();
+    builder.setObjectId(obj.getObjectId());
+    builder.setObjectIndex(obj.getObjectIndex());
+    builder.setRegion(obj.getRegion());
+    builder.setBucket(obj.getBucket());
+    builder.setKey(obj.getKey());
+    builder.setVersionId(obj.getVersionId());
+    builder.setNumBytes(obj.getNumBytes());
+    builder.setChecksum(obj.getChecksum());
+    return builder.build();
+  }
+
   public static LocatedBlock convert(LocatedBlockProto proto) {
     if (proto == null) return null;
     List<DatanodeInfoProto> locs = proto.getLocsList();
@@ -708,6 +610,14 @@ public class PBHelper {
       lb.setData(proto.getData().toByteArray());
     }
     return lb;
+  }
+
+  public static S3Object convert(S3ObjectProto proto) {
+    if(proto == null) {
+      return null;
+    }
+    return new S3Object(proto.getObjectId(), proto.getObjectIndex(), proto.getRegion(), proto.getBucket(),
+            proto.getKey(), proto.getVersionId(), proto.getNumBytes(), proto.getChecksum());
   }
 
   public static TokenProto convert(Token<?> tok) {
@@ -1198,6 +1108,18 @@ public class PBHelper {
     return result;
   }
 
+  public static List<S3Object> convertS3Object(List<S3ObjectProto> protos) {
+    if(protos == null) {
+      return null;
+    }
+    final int len = protos.size();
+    List<S3Object> result = new ArrayList<>(len);
+    for(S3ObjectProto proto : protos) {
+      result.add(PBHelper.convert(proto));
+    }
+    return result;
+  }
+
   public static List<LocatedBlockProto> convertLocatedBlock2(
       List<LocatedBlock> lb) {
     if (lb == null) {
@@ -1211,6 +1133,18 @@ public class PBHelper {
     return result;
   }
 
+  public static List<S3ObjectProto> convertS3Object2(List<S3Object> objs) {
+    if(objs == null) {
+      return null;
+    }
+    final int len = objs.size();
+    List<S3ObjectProto> result = new ArrayList<>(len);
+    for(S3Object obj : objs) {
+      result.add(PBHelper.convert(obj));
+    }
+    return result;
+  }
+
 
   // LocatedBlocks
   public static LocatedBlocks convert(LocatedBlocksProto lb) {
@@ -1220,6 +1154,19 @@ public class PBHelper {
         lb.getIsLastBlockComplete(),
         lb.hasFileEncryptionInfo() ? convert(lb.getFileEncryptionInfo()) :
             null);
+  }
+
+  public static S3File convert(S3FileProto proto) {
+    S3File file = new S3File(proto.getFileLength(),
+            PBHelper.convertS3Object(proto.getObjectsList()), proto.getUnderConstruction(),
+            null, null);
+    if(proto.hasFileEncryptionInfo()) {
+      file.setFileEncryptionInfo(convert(proto.getFileEncryptionInfo()));
+    }
+    if(proto.getData().size() > 0) {
+      file.setData(proto.getData().toByteArray());
+    }
+    return file;
   }
 
   public static LocatedBlocksProto convert(LocatedBlocks lb) {
@@ -1237,6 +1184,24 @@ public class PBHelper {
         .setUnderConstruction(lb.isUnderConstruction())
         .addAllBlocks(PBHelper.convertLocatedBlock2(lb.getLocatedBlocks()))
         .setIsLastBlockComplete(lb.isLastBlockComplete()).build();
+  }
+
+  public static S3FileProto convert(S3File file) {
+    if (file == null) {
+      return null;
+    }
+    S3FileProto.Builder builder = S3FileProto.newBuilder();
+    if(file.getFileEncryptionInfo() != null) {
+      builder.setFileEncryptionInfo(PBHelper.convert(file.getFileEncryptionInfo()));
+    }
+    if(file.getData() != null) {
+      builder.setData(ByteString.copyFrom(file.getData()));
+    }
+    return builder
+            .setFileLength(file.getFileLength())
+            .setUnderConstruction(file.isUnderConstruction())
+            .addAllObjects(PBHelper.convertS3Object2(file.getObjects()))
+            .build();
   }
 
   // DataEncryptionKey
