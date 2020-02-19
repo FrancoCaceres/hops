@@ -75,7 +75,6 @@ public class S3File {
     for(S3Object obj : objects) {
       long objStart = pos; // Index of the whole file
       long objEnd = pos + obj.getNumBytes() - 1; // Index of the whole file
-      RangedS3Object toAdd;
       boolean objStartInside = objStart >= start && objStart <= end;
       boolean objEndInside = objEnd >= start && objEnd <= end;
 
@@ -106,6 +105,7 @@ public class S3File {
       if(start >= objStart && start <= objEnd && end >= objStart && end <= objEnd) {
         res.add(new RangedS3Object(obj, start - objStart, end - start + 1));
       }
+      pos += obj.getNumBytes();
     }
     return res;
   }

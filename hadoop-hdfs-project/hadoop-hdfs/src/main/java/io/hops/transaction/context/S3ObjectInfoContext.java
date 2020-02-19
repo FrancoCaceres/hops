@@ -5,11 +5,13 @@ import io.hops.exception.StorageException;
 import io.hops.exception.TransactionContextException;
 import io.hops.metadata.common.FinderType;
 import io.hops.metadata.hdfs.dal.S3ObjectInfoDataAccess;
+import io.hops.metadata.hdfs.entity.INodeCandidatePrimaryKey;
 import io.hops.transaction.lock.Lock;
 import io.hops.transaction.lock.S3ObjectLock;
 import io.hops.transaction.lock.SqlBatchedS3ObjectsLock;
 import io.hops.transaction.lock.TransactionLocks;
 import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
+import org.apache.hadoop.hdfs.server.namenode.INode;
 
 import java.util.*;
 
@@ -54,7 +56,7 @@ public class S3ObjectInfoContext extends BaseEntityContext<Long, S3ObjectInfoCon
   public void prepare(TransactionLocks tlm) throws TransactionContextException, StorageException {
     if(foundByInode && !(tlm.getLock(Lock.Type.S3Object) instanceof S3ObjectLock)
         && !(tlm.getLock(Lock.Type.S3Object) instanceof SqlBatchedS3ObjectsLock)) {
-      throw new TransactionContextException("You can't find ByINodeId(s) when taking the lock only on one block");
+      throw new TransactionContextException("You can't find ByINodeId(s) when taking the lock only on one S3 object");
     }
     Collection<S3ObjectInfoContiguous> removed = new ArrayList<>(getRemoved());
     removed.addAll(concatRemovedObjs);
@@ -96,6 +98,47 @@ public class S3ObjectInfoContext extends BaseEntityContext<Long, S3ObjectInfoCon
   @Override
   Long getKey(S3ObjectInfoContiguous s3ObjectInfoContiguous) {
     return s3ObjectInfoContiguous.getObjectId();
+  }
+
+  @Override
+  public void snapshotMaintenance(TransactionContextMaintenanceCmds cmds,
+                                  Object... params) throws TransactionContextException {
+    HdfsTransactionContextMaintenanceCmds hopCmds = (HdfsTransactionContextMaintenanceCmds) cmds;
+    switch (hopCmds) {
+      case INodePKChanged:
+        //delete the previous row from db
+        INode inodeBeforeChange = (INode) params[0];
+        INode inodeAfterChange = (INode) params[1];
+        break;
+      case Concat:
+        INodeCandidatePrimaryKey trg_param =
+                (INodeCandidatePrimaryKey) params[0];
+        List<INodeCandidatePrimaryKey> srcs_param = (List<INodeCandidatePrimaryKey>) params[1];
+        List<S3ObjectInfoContiguous> oldObjects = (List<S3ObjectInfoContiguous>) params[3];
+        deleteObjectsForConcat(trg_param, srcs_param, oldObjects);
+        break;
+    }
+  }
+
+  private void deleteObjectsForConcat(INodeCandidatePrimaryKey trg_param, List<INodeCandidatePrimaryKey> deleteINodes,
+                                      List<S3ObjectInfoContiguous> oldObjects)
+          throws TransactionContextException {
+    if (!getRemoved().isEmpty()) {//in case of concat new s3object rows are added by the concat fn
+      throw new IllegalStateException(
+              "Concat file(s) whose s3 objects are changed. During rename and move no s3 objects should have been changed.");
+    }
+
+    for (S3ObjectInfoContiguous obj : oldObjects) {
+      INodeCandidatePrimaryKey pk = new INodeCandidatePrimaryKey(obj.getInodeId());
+      if (deleteINodes.contains(pk)) {
+        //remove the object
+        concatRemovedObjs.add(obj);
+        if(isLogTraceEnabled()) {
+          log("snapshot-maintenance-removed-s3objectinfo", "oid", obj.getObjectId(),
+                  "inodeId", obj.getInodeId());
+        }
+      }
+    }
   }
 
   private List<S3ObjectInfoContiguous> findByInodeId(S3ObjectInfoContiguous.Finder oFinder, final Object[] params)

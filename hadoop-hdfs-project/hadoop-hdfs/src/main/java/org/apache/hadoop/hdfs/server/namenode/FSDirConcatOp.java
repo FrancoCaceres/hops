@@ -28,30 +28,27 @@ import io.hops.transaction.handler.HopsTransactionalRequestHandler;
 import io.hops.transaction.lock.INodeLock;
 import io.hops.transaction.lock.LockFactory;
 import io.hops.transaction.lock.LockFactory.BLK;
-import static io.hops.transaction.lock.LockFactory.getInstance;
 import io.hops.transaction.lock.TransactionLockTypes.INodeLockType;
 import io.hops.transaction.lock.TransactionLockTypes.INodeResolveType;
 import io.hops.transaction.lock.TransactionLockTypes.LockType;
 import io.hops.transaction.lock.TransactionLocks;
 import org.apache.hadoop.HadoopIllegalArgumentException;
-import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.StorageType;
+import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hdfs.protocol.BlockStoragePolicy;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
+import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
 import org.apache.hadoop.ipc.RetryCache.CacheEntry;
 import org.apache.hadoop.ipc.RetryCacheDistributed;
 import org.apache.hadoop.ipc.Server;
-import java.util.List;
 
+import java.io.IOException;
+import java.util.*;
+
+import static io.hops.transaction.lock.LockFactory.getInstance;
 import static org.apache.hadoop.util.Time.now;
 
 /**
@@ -89,6 +86,7 @@ class FSDirConcatOp {
             .setActiveNameNodes(fsd.getFSNamesystem().getNameNode().getActiveNameNodes().getActiveNodes());
         locks.add(il).add(lf.getBlockLock()).add(
             lf.getBlockRelated(BLK.RE.RE, BLK.CR, BLK.ER, BLK.PE, BLK.UC, BLK.IV));
+        locks.add(lf.getS3ObjectLock());
         if (fsd.getFSNamesystem().isRetryCacheEnabled()) {
           locks.add(lf.getRetryCacheEntryLock(Server.getClientId(),
               Server.getCallId()));
@@ -191,19 +189,24 @@ class FSDirConcatOp {
                 + " is stored in DB.");
       }
 
-      // source file cannot be under construction or empty
-      if(srcINodeFile.isUnderConstruction() || srcINodeFile.numBlocks() == 0) {
+      if(!srcINodeFile.isFileStoredInS3()) {
+        // source file cannot be under construction or empty
+        if(srcINodeFile.isUnderConstruction() || srcINodeFile.numBlocks() == 0) {
+          throw new HadoopIllegalArgumentException("concat: source file " + src
+                  + " is invalid or empty or underConstruction");
+        }
+        // source file's preferred block size cannot be greater than the target
+        // file
+        if (srcINodeFile.getPreferredBlockSize() >
+                targetINode.getPreferredBlockSize()) {
+          throw new HadoopIllegalArgumentException("concat: source file " + src
+                  + " has preferred block size " + srcINodeFile.getPreferredBlockSize()
+                  + " which is greater than the target file's preferred block size "
+                  + targetINode.getPreferredBlockSize());
+        }
+      } else if(srcINodeFile.isUnderConstruction()) {
         throw new HadoopIllegalArgumentException("concat: source file " + src
-            + " is invalid or empty or underConstruction");
-      }
-      // source file's preferred block size cannot be greater than the target
-      // file
-      if (srcINodeFile.getPreferredBlockSize() >
-          targetINode.getPreferredBlockSize()) {
-        throw new HadoopIllegalArgumentException("concat: source file " + src
-            + " has preferred block size " + srcINodeFile.getPreferredBlockSize()
-            + " which is greater than the target file's preferred block size "
-            + targetINode.getPreferredBlockSize());
+                + " is underConstruction");
       }
       si.add(srcINodeFile);
     }
@@ -273,6 +276,7 @@ class FSDirConcatOp {
 
     INodeDirectory trgParent = targetIIP.getINode(-2).asDirectory();
     List<BlockInfoContiguous> oldBlks = trgInode.concatBlocks(srcList);
+    List<S3ObjectInfoContiguous> oldS3Objects = trgInode.concatS3Objects(srcList);
 
     //params for updating the EntityManager.snapshots
     INodeCandidatePrimaryKey trg_param = new INodeCandidatePrimaryKey(trgInode.getId());

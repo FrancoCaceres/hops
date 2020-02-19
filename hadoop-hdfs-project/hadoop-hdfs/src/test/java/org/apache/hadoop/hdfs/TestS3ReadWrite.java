@@ -10,9 +10,9 @@ import java.nio.ByteBuffer;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_ENABLED_KEY;
 import static org.junit.Assert.assertTrue;
 
-public class TestS3WriteRead {
+public class TestS3ReadWrite {
   static final long seed = 0xDEADBEEFL;
-  static final int fileSize = 2048;
+  static final int fileSize = 256;
   static final String fileName = "s3file.dat";
   static final int blockSize = 4096;
   static final byte replication = 1;
@@ -49,19 +49,19 @@ public class TestS3WriteRead {
       FSDataInputStream fis = fs.open(file1, 1024);
       byte[] readContent = new byte[2500];
       int bytesRead = fis.read(readContent, 0, fileSize);
-      assertTrue("Number of bytes read should be the same as the size of the file",
+      assertTrue("Number of bytes read should be " + fileSize + " , but is " + bytesRead,
               bytesRead == fileSize);
       assertTrue("The bytes read should be equal to the content of the file",
               ByteBuffer.wrap(fileContent, 0, fileSize).equals(ByteBuffer.wrap(readContent, 0, fileSize)));
 
       // Read range
-      bytesRead = fis.read(1024, readContent, 0, 1024);
-      assertTrue(bytesRead == 1024);
-      assertTrue(ByteBuffer.wrap(fileContent, 1024, 1024).equals(ByteBuffer.wrap(readContent, 0, 1024)));
+      bytesRead = fis.read(128, readContent, 0, 128);
+      assertTrue(bytesRead == 128);
+      assertTrue(ByteBuffer.wrap(fileContent, 128, 128).equals(ByteBuffer.wrap(readContent, 0, 128)));
 
       // Read more than remaining
       fis.seek(0);
-      bytesRead = fis.read(readContent, 0, fileSize + 1024);
+      bytesRead = fis.read(readContent, 0, fileSize + 128);
       assertTrue(bytesRead == fileSize);
       assertTrue(ByteBuffer.wrap(fileContent, 0, fileSize).equals(ByteBuffer.wrap(readContent, 0, fileSize)));
 

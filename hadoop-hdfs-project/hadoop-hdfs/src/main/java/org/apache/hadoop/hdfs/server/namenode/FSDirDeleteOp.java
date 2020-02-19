@@ -19,23 +19,26 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import io.hops.exception.StorageException;
 import io.hops.exception.TransactionContextException;
-import io.hops.metadata.hdfs.entity.INodeIdentifier;
-import io.hops.metadata.hdfs.entity.INodeMetadataLogEntry;
-import io.hops.metadata.hdfs.entity.ProjectedINode;
-import io.hops.metadata.hdfs.entity.FileProvenanceEntry;
-import io.hops.metadata.hdfs.entity.SubTreeOperation;
+import io.hops.metadata.hdfs.entity.*;
 import io.hops.transaction.handler.HDFSOperationType;
 import io.hops.transaction.handler.HopsTransactionalRequestHandler;
 import io.hops.transaction.lock.INodeLock;
 import io.hops.transaction.lock.LockFactory;
 import io.hops.transaction.lock.LockFactory.BLK;
-import io.hops.transaction.lock.TransactionLockTypes.LockType;
 import io.hops.transaction.lock.TransactionLockTypes.INodeLockType;
 import io.hops.transaction.lock.TransactionLockTypes.INodeResolveType;
+import io.hops.transaction.lock.TransactionLockTypes.LockType;
 import io.hops.transaction.lock.TransactionLocks;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.PathIsNotEmptyDirectoryException;
+import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
+import org.apache.hadoop.ipc.RetriableException;
+import org.apache.hadoop.ipc.RetryCache;
+import org.apache.hadoop.ipc.RetryCacheDistributed;
+import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.util.ChunkedArrayList;
 
 import java.io.IOException;
@@ -45,14 +48,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.fs.permission.AclEntry;
-import org.apache.hadoop.ipc.RetriableException;
 
-import org.apache.hadoop.ipc.RetryCache;
-import org.apache.hadoop.ipc.RetryCacheDistributed;
-import org.apache.hadoop.ipc.Server;
 import static org.apache.hadoop.util.Time.now;
 
 class FSDirDeleteOp {
@@ -262,7 +258,8 @@ class FSDirDeleteOp {
             locks.add(il).add(lf.getLeaseLock(LockType.WRITE))
                 .add(lf.getLeasePathLock(LockType.READ_COMMITTED))
                 .add(lf.getBlockLock()).add(
-                lf.getBlockRelated(BLK.RE, BLK.CR, BLK.UC, BLK.UR, BLK.PE, BLK.IV, BLK.ER));
+                lf.getBlockRelated(BLK.RE, BLK.CR, BLK.UC, BLK.UR, BLK.PE, BLK.IV, BLK.ER))
+                .add(lf.getS3ObjectLock());
 
             locks.add(lf.getAllUsedHashBucketsLock());
 
@@ -313,7 +310,8 @@ class FSDirDeleteOp {
             .skipReadingQuotaAttr(!fsd.isQuotaEnabled());
         locks.add(il).add(lf.getLeaseLock(LockType.WRITE))
             .add(lf.getLeasePathLock(LockType.READ_COMMITTED)).add(lf.getBlockLock())
-            .add(lf.getBlockRelated(BLK.RE, BLK.CR, BLK.UC, BLK.UR,BLK.PE, BLK.IV,BLK.ER));
+            .add(lf.getBlockRelated(BLK.RE, BLK.CR, BLK.UC, BLK.UR,BLK.PE, BLK.IV,BLK.ER))
+            .add(lf.getS3ObjectLock());
         if (fsn.isRetryCacheEnabled()) {
           locks.add(lf.getRetryCacheEntryLock(Server.getClientId(),
               Server.getCallId()));

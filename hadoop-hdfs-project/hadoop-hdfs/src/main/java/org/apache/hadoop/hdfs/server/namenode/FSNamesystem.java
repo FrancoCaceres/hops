@@ -3512,10 +3512,10 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       throw lee;
     }
     pendingFile.setStoragePolicyID(HdfsConstants.S3_STORAGE_POLICY_ID);
-    pendingFile.setSize(size);
     S3ObjectInfoContiguous obj = createS3Object(pendingFile.getId(), DFSUtil.removeLeadingSlash(src),
             versionId, size, checksum);
     pendingFile.addS3Object(obj);
+    pendingFile.recomputeFileSize();
 
     finalizeINodeFileUnderConstruction(src, pendingFile);
 
@@ -8901,6 +8901,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
                     .setActiveNameNodes(nameNode.getActiveNameNodes().getActiveNodes())
                     .skipReadingQuotaAttr(!dir.isQuotaEnabled());
             locks.add(il).add(lf.getBlockLock()); // blk lock only if file
+            locks.add(lf.getS3ObjectLock());
             locks.add(lf.getAcesLock());
           }
 

@@ -31,6 +31,7 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.BlockStoragePolicy;
 import org.apache.hadoop.hdfs.protocol.S3Object;
 import org.apache.hadoop.hdfs.server.blockmanagement.*;
+import org.apache.hadoop.hdfs.server.cloud.S3ObjectCollection;
 import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
 import org.apache.hadoop.hdfs.server.common.GenerationStamp;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
@@ -45,7 +46,7 @@ import static org.apache.hadoop.hdfs.protocol.HdfsConstantsClient.BLOCK_STORAGE_
  * I-node for closed file.
  */
 @InterfaceAudience.Private
-public class INodeFile extends INodeWithAdditionalFields implements BlockCollection {
+public class INodeFile extends INodeWithAdditionalFields implements BlockCollection, S3ObjectCollection {
   
   /** The same as valueOf(inode, path, false). */
   public static INodeFile valueOf(INode inode, String path
@@ -196,6 +197,7 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
     return blocks.toArray(blks);
   }
 
+  @Override
   public S3ObjectInfoContiguous[] getS3Objects() throws StorageException, TransactionContextException {
     if(!isFileStoredInS3()) {
       FSNamesystem.LOG.debug("Stuffed Inode: getS3Objects(). the file is not stored in S3. Returning empty list of objects");
@@ -209,6 +211,16 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
 
     S3ObjectInfoContiguous[] objs = new S3ObjectInfoContiguous[objects.size()];
     return objects.toArray(objs);
+  }
+
+  @Override
+  public S3ObjectInfoContiguous getS3Object(int index) throws IOException {
+    return EntityManager.find(S3ObjectInfoContiguous.Finder.ByINodeIdAndIndex, id, index);
+  }
+
+  @Override
+  public void setS3Object(int index, S3ObjectInfoContiguous obj) throws IOException {
+    obj.setObjectIndex(index);
   }
 
   public void storeFileDataInDB(byte[] data)
@@ -309,6 +321,21 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
     }
     recomputeFileSize();
     return oldBlks;
+  }
+
+  List<S3ObjectInfoContiguous> concatS3Objects(INodeFile[] inodes)
+          throws StorageException, TransactionContextException {
+    List<S3ObjectInfoContiguous> oldObjects = new ArrayList<>();
+    for(INodeFile srcInode : inodes) {
+      for(S3ObjectInfoContiguous object : srcInode.getS3Objects()) {
+        S3ObjectInfoContiguous copy = S3ObjectInfoContiguous.cloneObject(object);
+        oldObjects.add(copy);
+        addS3Object(object);
+        object.setObjectCollection(this);
+      }
+    }
+    recomputeFileSize();
+    return oldObjects;
   }
   
   /**
@@ -427,6 +454,9 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
    */
   public final long computeFileSize(boolean includesLastUcBlock,
       boolean usePreferredBlockSize4LastUcBlock) throws StorageException, TransactionContextException {
+    if(isFileStoredInS3()) {
+      return computeS3FileSize();
+    }
     BlockInfoContiguous[] blocks = getBlocks();
     if (blocks == null || blocks.length == 0) {
       return 0;
@@ -535,6 +565,12 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
     S3ObjectInfoContiguous[] objects = getS3Objects();
     return objects == null || objects.length == 0 ? null :
             objects[objects.length - 1];
+  }
+
+  @Override
+  public int numS3Objects() throws StorageException, TransactionContextException {
+    S3ObjectInfoContiguous[] objects = getS3Objects();
+    return objects == null ? 0 : objects.length;
   }
 
   @Override
