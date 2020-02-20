@@ -479,6 +479,19 @@ class NameNodeRpcServer implements NamenodeProtocols {
     return info;
   }
 
+  @Override
+  public HdfsFileStatus appendS3(String src, String clientName) throws IOException {
+    checkNNStartup();
+    String clientMachine = getClientMachine();
+    if (stateChangeLog.isDebugEnabled()) {
+      stateChangeLog.debug("*DIR* NameNode.appendS3: file "
+              +src+" for "+clientName+" at "+clientMachine);
+    }
+    HdfsFileStatus info = namesystem.appendS3File(src, clientName, clientMachine);
+    metrics.incrFilesAppended();
+    return info;
+  }
+
   @Override // ClientProtocol
   public boolean recoverLease(String src, String clientName)
       throws IOException {

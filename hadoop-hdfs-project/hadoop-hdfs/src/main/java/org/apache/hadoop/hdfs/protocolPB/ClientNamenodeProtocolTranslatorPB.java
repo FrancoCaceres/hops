@@ -279,6 +279,19 @@ public class ClientNamenodeProtocolTranslatorPB
   }
 
   @Override
+  public HdfsFileStatus appendS3(String src, String clientName) throws AccessControlException, FileNotFoundException, SafeModeException, UnresolvedLinkException, IOException {
+    AppendS3RequestProto req = AppendS3RequestProto.newBuilder().setSrc(src)
+            .setClientName(clientName).build();
+    try {
+      AppendS3ResponseProto res = rpcProxy.appendS3(null, req);
+      HdfsFileStatus status = res.hasStat() ? PBHelper.convert(res.getStat()) : null;
+      return status;
+    } catch (ServiceException e) {
+      throw ProtobufHelper.getRemoteException(e);
+    }
+  }
+
+  @Override
   public boolean setReplication(String src, short replication)
       throws AccessControlException, DSQuotaExceededException,
       FileNotFoundException, SafeModeException, UnresolvedLinkException,

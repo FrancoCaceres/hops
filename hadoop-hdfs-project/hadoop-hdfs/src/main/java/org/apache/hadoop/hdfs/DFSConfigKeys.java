@@ -636,6 +636,8 @@ public class DFSConfigKeys extends CommonConfigurationKeys {
   public static final int DFS_CLIENT_OBJECT_STORAGE_PART_SIZE_DEFAULT = 5*1024*1024;
   public static final String DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_KEY = "dfs.namenode.object-storage.s3.bucket";
   public static final String DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY = "dfs.namenode.object-storage.s3.bucket.region";
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_S3_APPEND_SUFFIX_KEY = "dfs.namenode.object-storage.s3.append-suffix";
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_S3_APPEND_SUFFIX_DEFAULT = "*";
 
   // WebHDFS retry policy
   @Deprecated

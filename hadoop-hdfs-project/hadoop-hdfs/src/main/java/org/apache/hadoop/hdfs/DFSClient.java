@@ -1452,6 +1452,12 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
       throws IOException {
     CreateFlag.validateForAppend(flag);
     try {
+      if(isObjectStorageEnabled()) {
+        HdfsFileStatus stat = namenode.appendS3(src, clientName);
+        return S3DFSOutputStream.newStreamForAppend(this, src, flag, progress, stat,
+                dfsClientConf.createChecksum(null), dfsClientConf.getDBFileMaxSize(),
+                dfsClientConf.getForceClientToWriteSFToDisk());
+      }
       LastBlockWithStatus blkWithStatus = namenode.append(src, clientName,
           new EnumSetWritable<>(flag, CreateFlag.class));
       return DFSOutputStream.newStreamForAppend(this, src, flag, buffersize,

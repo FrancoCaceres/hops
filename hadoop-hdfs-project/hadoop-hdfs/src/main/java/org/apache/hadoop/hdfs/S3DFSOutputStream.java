@@ -7,11 +7,14 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.ParentNotDirectoryException;
+import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.client.impl.DfsClientConf;
 import org.apache.hadoop.hdfs.protocol.*;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
 import org.apache.hadoop.hdfs.server.namenode.RetryStartFileException;
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
+import org.apache.hadoop.hdfs.server.namenode.UnsupportedActionException;
 import org.apache.hadoop.io.EnumSetWritable;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.security.AccessControlException;
@@ -31,18 +34,35 @@ public class S3DFSOutputStream extends DFSOutputStream {
   private static final short REPLICATION = 1;
   private final S3UploadOutputStream s3UploadOutputStream;
   private final CheckedOutputStream checkedOutputStream;
+  private static BlockStoragePolicySuite policySuite = BlockStoragePolicySuite.createDefaultSuite();
 
   private S3DFSOutputStream(DFSClient dfsClient, String src, Progressable progress,
-                            HdfsFileStatus stat, DataChecksum checksum) throws IOException {
+                            HdfsFileStatus stat, DataChecksum checksum, boolean isAppend) throws IOException {
     super(dfsClient, src, progress, stat, checksum);
-    this.s3UploadOutputStream = new S3UploadOutputStream(dfsClient.getConfiguration(), src);
+    String s3Key = isAppend ? src.concat(getAppendSuffix()) : src;
+    this.s3UploadOutputStream = new S3UploadOutputStream(dfsClient.getConfiguration(), s3Key);
     this.checkedOutputStream = new CheckedOutputStream(s3UploadOutputStream, checksum);
   }
 
+  private String getAppendSuffix() {
+    return this.dfsClient.getConfiguration().get(
+            DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_S3_APPEND_SUFFIX_KEY,
+            DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_S3_APPEND_SUFFIX_DEFAULT);
+  }
+
+  // Create constructor
   private S3DFSOutputStream(DFSClient dfsClient, String src, HdfsFileStatus stat,
     EnumSet<CreateFlag> flag, Progressable progress, DataChecksum checksum,
     EncodingPolicy policy, final int dbFileMaxSize, boolean forceClientToWriteSFToDisk) throws IOException {
-    this(dfsClient, src, progress, stat, checksum);
+    this(dfsClient, src, progress, stat, checksum, false);
+  }
+
+  // Append constructor
+  private S3DFSOutputStream(DFSClient dfsClient, String src, EnumSet<CreateFlag> flags, Progressable progress,
+                            HdfsFileStatus stat, DataChecksum checksum, final int dbFileMaxSize,
+                            boolean forceClientToWriteSFToDisk) throws IOException {
+    this(dfsClient, src, progress, stat, checksum, true);
+    initialFileSize = stat.getLen();
   }
 
   static S3DFSOutputStream newStreamForCreate(DFSClient dfsClient, String src,
@@ -93,6 +113,23 @@ public class S3DFSOutputStream extends DFSOutputStream {
       Preconditions.checkNotNull(stat, "HdfsFileStatus should not be null!");
       return new S3DFSOutputStream(dfsClient, src, stat,
               flag, progress, checksum, policy, dbFileMaxSize, forceClientToWriteSFToDisk);
+    } finally {
+      scope.close();
+    }
+  }
+
+  static S3DFSOutputStream newStreamForAppend(DFSClient dfsClient, String src, EnumSet<CreateFlag> flags,
+                                              Progressable progress, HdfsFileStatus stat, DataChecksum checksum,
+                                              final int dbFileMaxSize, boolean forceClientToWriteSFToDisk)
+          throws IOException {
+    TraceScope scope =
+            dfsClient.newPathTraceScope("newStreamForAppend", src);
+    try{
+      if(policySuite.getPolicy(stat.getStoragePolicy()).getStorageTypes()[0] == StorageType.DB) {
+        throw new UnsupportedActionException("Appending to DB file is not supported while using S3.");
+      }
+      return new S3DFSOutputStream(dfsClient, src, flags, progress, stat, checksum, dbFileMaxSize,
+              forceClientToWriteSFToDisk);
     } finally {
       scope.close();
     }
@@ -150,7 +187,7 @@ public class S3DFSOutputStream extends DFSOutputStream {
   private void closeInternal() throws IOException {
     TraceScope scope = dfsClient.getTracer().newScope("completeFile");
     try {
-      checkedOutputStream.close(); // TODO FCG Get checksum and upload to S3
+      checkedOutputStream.close();
       completeFile();
     } finally {
       scope.close();

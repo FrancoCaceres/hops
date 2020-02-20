@@ -2066,6 +2066,14 @@
   </property>
 
   <property>
+    <name>dfs.namenode.object-storage.s3.append-suffix</name>
+    <value>*</value>
+    <description>
+      String to append at the end of an S3 object key to signal it is an append object.
+    </description>
+  </property>
+
+  <property>
     <name>dfs.client.object-storage.part-size</name>
     <value>5242880</value>
     <description>

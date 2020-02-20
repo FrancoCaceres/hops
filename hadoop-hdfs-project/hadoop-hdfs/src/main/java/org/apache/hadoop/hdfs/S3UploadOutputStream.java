@@ -16,7 +16,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 /*
-* TODO Parallelize part-upload requests to conform to S3's
+* TODO FCG Parallelize part-upload requests to conform to S3's
 *  performance guidelines:
 *  https://docs.aws.amazon.com/AmazonS3/latest/dev/optimizing-performance-design-patterns.html
 * */
@@ -33,7 +33,7 @@ public class S3UploadOutputStream extends OutputStream {
   private String versionId; // Obtained after completing upload
   private long size; // Incremented with every uploadPart()
 
-  public S3UploadOutputStream(Configuration conf, String src) {
+  public S3UploadOutputStream(Configuration conf, String key) {
     partNumber = 1;
     final int partSize = conf.getInt(DFSConfigKeys.DFS_CLIENT_OBJECT_STORAGE_PART_SIZE_KEY,
             DFSConfigKeys.DFS_CLIENT_OBJECT_STORAGE_PART_SIZE_DEFAULT);
@@ -43,7 +43,7 @@ public class S3UploadOutputStream extends OutputStream {
     Preconditions.checkNotNull(bucket, "S3 bucket not provided in configuration");
     String bucketRegion = conf.get(DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY, null);
     Preconditions.checkNotNull(bucketRegion, "S3 bucket region not provided in configuration");
-    key = DFSUtil.removeLeadingSlash(src);
+    this.key = DFSUtil.removeLeadingSlash(key);
 
     s3 = AmazonS3ClientBuilder.standard()
             .withCredentials(new EnvironmentVariableCredentialsProvider())
@@ -52,7 +52,7 @@ public class S3UploadOutputStream extends OutputStream {
     count = 0;
     size = 0;
     closed = false;
-    InitiateMultipartUploadRequest req = new InitiateMultipartUploadRequest(bucket, key);
+    InitiateMultipartUploadRequest req = new InitiateMultipartUploadRequest(bucket, this.key);
     InitiateMultipartUploadResult res = s3.initiateMultipartUpload(req);
     uploadId = res.getUploadId();
   }

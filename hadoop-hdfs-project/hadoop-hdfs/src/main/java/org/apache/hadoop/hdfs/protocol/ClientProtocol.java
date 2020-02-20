@@ -358,6 +358,11 @@ public interface ClientProtocol {
       DSQuotaExceededException, FileNotFoundException, SafeModeException,
       UnresolvedLinkException, IOException;
 
+  @Idempotent
+  public HdfsFileStatus appendS3(String src, String clientName)
+          throws AccessControlException, FileNotFoundException, SafeModeException,
+          UnresolvedLinkException, IOException;
+
   /**
    * Set replication for an existing file.
    * <p/>

@@ -2595,6 +2595,17 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
   }
 
+  HdfsFileStatus appendS3File(final String src, final String holder, final String clientMachine)
+          throws IOException {
+    try{
+      return appendS3FileHopFS(src, holder, clientMachine);
+    } catch(HDFSClientAppendToDBFileException e){
+      LOG.debug(e);
+      // TODO FCG Support moving files stored in DB to S3 first before appending
+      return null;
+    }
+  }
+
   /*
   HDFS clients can not append to a file stored in the database.
   To support the HDFS Clients the files stored in the database are first
@@ -2779,6 +2790,139 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       }
     }
     return new LastBlockWithStatus(lb, stat);
+  }
+
+  private HdfsFileStatus appendS3FileHopFS(final String srcArg, final String holder, final String clientMachine)
+    throws IOException {
+    byte[][] pathComponents = FSDirectory.getPathComponentsForReservedPath(srcArg);
+    final String src = dir.resolvePath(getPermissionChecker(), srcArg, pathComponents);
+    HopsTransactionalRequestHandler appendFileHandler =
+            new HopsTransactionalRequestHandler(HDFSOperationType.APPEND_FILE,
+                    src) {
+              @Override
+              public void acquireLock(TransactionLocks locks) throws IOException {
+                LockFactory lf = getInstance();
+                INodeLock il = lf.getINodeLock( INodeLockType.WRITE_ON_TARGET_AND_PARENT, INodeResolveType.PATH, src)
+                        .setNameNodeID(nameNode.getId())
+                        .setActiveNameNodes(nameNode.getActiveNameNodes().getActiveNodes())
+                        .skipReadingQuotaAttr(!dir.isQuotaEnabled());
+                locks.add(il).add(lf.getBlockLock())
+                        .add(lf.getLeaseLock(LockType.WRITE, holder))
+                        .add(lf.getLeasePathLock(LockType.READ_COMMITTED))
+                        .add(lf.getBlockRelated(BLK.RE, BLK.CR, BLK.ER, BLK.UC, BLK.UR, BLK.IV, BLK.PE))
+                        .add(lf.getS3ObjectLock())
+                        .add(lf.getLastBlockHashBucketsLock());
+                if(isRetryCacheEnabled) {
+                  locks.add(lf.getRetryCacheEntryLock(Server.getClientId(),
+                          Server.getCallId()));
+                }
+                locks.add(lf.getAcesLock());
+                locks.add(lf.getEZLock());
+                locks.add(lf.getXAttrLock(FSDirXAttrOp.XATTR_FILE_ENCRYPTION_INFO));
+              }
+
+              @Override
+              public Object performTask() throws IOException {
+                HdfsFileStatus stat = null;
+                CacheEntryWithPayload cacheEntry = RetryCacheDistributed.waitForCompletion(retryCache,
+                        null);
+                if (cacheEntry != null && cacheEntry.isSuccess()) {
+                  ClientNamenodeProtocolProtos.AppendS3ResponseProto proto = ClientNamenodeProtocolProtos.AppendS3ResponseProto.
+                          parseFrom(cacheEntry.getPayload());
+                  stat = (proto.hasStat()) ? PBHelper.convert(proto.getStat()) : null;
+                  return stat;
+                }
+
+                boolean success = false;
+                try {
+                  INode target = getINode(src);
+
+                  if (target != null && target instanceof INodeFile && ((INodeFile) target).isFileStoredInDB() && !holder.
+                          contains("HopsFS")) {
+                    throw new HDFSClientAppendToDBFileException(
+                            "HDFS can not directly append to a file stored in the database");
+                  }
+
+                  stat = appendS3FileInt(srcArg, src, holder, clientMachine);
+                  success = true;
+                  return stat;
+                } catch (AccessControlException e) {
+                  logAuditEvent(false, "appendS3", srcArg);
+                  throw e;
+                } finally {
+                  //do not put data in the cache as it may be too big.
+                  //recover the data value if needed when geting from cache.
+                  ClientNamenodeProtocolProtos.AppendS3ResponseProto.Builder builder
+                          = ClientNamenodeProtocolProtos.AppendS3ResponseProto.newBuilder();
+                  if (stat != null) {
+                    builder.setStat(PBHelper.convert(stat));
+                  }
+                  byte[] toCache = builder.build().toByteArray();
+                  RetryCacheDistributed.setState(cacheEntry, success, toCache);
+                }
+              }
+            };
+    HdfsFileStatus stat = (HdfsFileStatus) appendFileHandler.handle(this);
+    logAuditEvent(true, "appendS3", srcArg);
+    return stat;
+  }
+
+  private HdfsFileStatus appendS3FileInt(String srcArg, String src, String holder,
+                                            String clientMachine) throws IOException {
+    if (!supportAppends) {
+      throw new UnsupportedOperationException(
+              "Append is not enabled on this NameNode. Use the " +
+                      DFS_SUPPORT_APPEND_KEY + " configuration option to enable it.");
+    }
+    LocatedBlock lb;
+    HdfsFileStatus stat = null;
+    FSPermissionChecker pc = getPermissionChecker();
+    final INodesInPath iip = dir.getINodesInPath4Write(src);
+    appendS3FileInternal(pc, iip, holder, clientMachine);
+    stat = FSDirStatAndListingOp.getFileInfo(dir, src, false,
+            FSDirectory.isReservedRawName(srcArg), true);
+    if (stat != null) {
+      if (NameNode.stateChangeLog.isDebugEnabled()) {
+        NameNode.stateChangeLog.debug(
+                "DIR* NameSystem.appendS3File: file " + src + " for " + holder +
+                        " at " + clientMachine);
+      }
+    }
+    return stat;
+  }
+
+  private void appendS3FileInternal(FSPermissionChecker pc,
+                                          INodesInPath iip, String holder, String clientMachine) throws IOException {
+    // Verify that the destination does not exist as a directory already.
+    final INode inode = iip.getLastINode();
+    final String src = iip.getPath();
+    if (inode != null && inode.isDirectory()) {
+      throw new FileAlreadyExistsException("Cannot append to directory " + src
+              + "; already exists as a directory.");
+    }
+    if (isPermissionEnabled) {
+      dir.checkPathAccess(pc, iip, FsAction.WRITE);
+    }
+
+    try {
+      if (inode == null) {
+        throw new FileNotFoundException("failed to append to non-existent file "
+                + src + " for client " + clientMachine);
+      }
+      // Opening an existing file for append - may need to recover lease.
+      recoverLeaseInternal(RecoverLeaseOp.APPEND_FILE, iip, src, holder, clientMachine, false);
+      prepareS3FileForAppend(src, iip, holder, clientMachine);
+    } catch (IOException ie) {
+      NameNode.stateChangeLog.warn("DIR* NameSystem.appendS3: " +ie.getMessage());
+      throw ie;
+    }
+  }
+
+  void prepareS3FileForAppend(String src, INodesInPath iip,
+                                    String leaseHolder, String clientMachine) throws IOException {
+    final INodeFile file = iip.getLastINode().asFile();
+    file.toUnderConstruction(leaseHolder, clientMachine);
+    leaseManager.addLease(file.getFileUnderConstructionFeature().getClientName(), src);
   }
 
   private ExtendedBlock getExtendedBlock(Block blk) {
@@ -3513,7 +3657,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
     pendingFile.setStoragePolicyID(HdfsConstants.S3_STORAGE_POLICY_ID);
     S3ObjectInfoContiguous obj = createS3Object(pendingFile.getId(), DFSUtil.removeLeadingSlash(src),
-            versionId, size, checksum);
+            versionId, size, checksum, isS3Append(pendingFile));
     pendingFile.addS3Object(obj);
     pendingFile.recomputeFileSize();
 
@@ -3524,15 +3668,28 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     return true;
   }
 
-  private S3ObjectInfoContiguous createS3Object(long inodeId, String key, String versionId, long size, long checksum)
+  private boolean isS3Append(INodeFile file) throws TransactionContextException, StorageException {
+    return file.getS3Objects().length > 0;
+  }
+
+  private S3ObjectInfoContiguous createS3Object(long inodeId, String key, String versionId, long size, long checksum,
+                                                boolean isAppend)
           throws IOException {
     String region = conf.get(DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY);
     String bucket = conf.get(DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_KEY);
     Preconditions.checkNotNull(region);
     Preconditions.checkNotNull(bucket);
 
+    if(isAppend) {
+      key = key.concat(getS3AppendSuffix());
+    }
     S3Object newObj = new S3Object(nextS3ObjectId(), 0, region, bucket, key, versionId, size, checksum);
     return new S3ObjectInfoContiguous(newObj, inodeId);
+  }
+
+  private String getS3AppendSuffix() {
+    return this.conf.get(DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_S3_APPEND_SUFFIX_KEY,
+            DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_S3_APPEND_SUFFIX_DEFAULT);
   }
 
   private boolean completeFileStoredOnDataNodes(String src, String holder,

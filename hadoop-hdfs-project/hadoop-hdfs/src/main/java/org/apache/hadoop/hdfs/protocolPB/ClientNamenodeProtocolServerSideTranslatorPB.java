@@ -339,6 +339,20 @@ public class ClientNamenodeProtocolServerSideTranslatorPB
   }
 
   @Override
+  public AppendS3ResponseProto appendS3(RpcController controller, AppendS3RequestProto req) throws ServiceException {
+    try {
+      HdfsFileStatus stat = server.appendS3(req.getSrc(), req.getClientName());
+      AppendS3ResponseProto.Builder builder = AppendS3ResponseProto.newBuilder();
+      if(stat != null) {
+        builder.setStat(PBHelper.convert(stat));
+      }
+      return builder.build();
+    } catch (IOException e) {
+      throw new ServiceException(e);
+    }
+  }
+
+  @Override
   public SetReplicationResponseProto setReplication(RpcController controller,
       SetReplicationRequestProto req) throws ServiceException {
     try {

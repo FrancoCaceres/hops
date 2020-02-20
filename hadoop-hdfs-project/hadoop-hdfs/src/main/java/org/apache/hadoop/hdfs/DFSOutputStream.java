@@ -102,7 +102,7 @@ public class DFSOutputStream extends FSOutputSummer
   protected int packetSize = 0; // write packet size, not including the header.
   protected int chunksPerPacket = 0;
   protected long lastFlushOffset = 0; // offset when flush was invoked
-  private long initialFileSize = 0; // at time of file open
+  protected long initialFileSize = 0; // at time of file open
   private final short blockReplication; // replication factor of file
   protected boolean shouldSyncBlock = false; // force blocks to disk upon close
   protected final AtomicReference<CachingStrategy> cachingStrategy;

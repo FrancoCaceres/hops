@@ -138,6 +138,15 @@ message AppendResponseProto {
   optional HdfsFileStatusProto stat = 2;
 }
 
+message AppendS3RequestProto {
+  required string src = 1;
+  required string clientName = 2;
+}
+
+message AppendS3ResponseProto {
+  optional HdfsFileStatusProto stat = 1;
+}
+
 message SetReplicationRequestProto {
   required string src = 1;
   required uint32 replication = 2; // Short: Only 16 bits used
@@ -846,6 +855,7 @@ service ClientNamenodeProtocol {
   rpc getServerDefaults (GetServerDefaultsRequestProto) returns (GetServerDefaultsResponseProto);
   rpc create (CreateRequestProto) returns (CreateResponseProto);
   rpc append (AppendRequestProto) returns (AppendResponseProto);
+  rpc appendS3 (AppendS3RequestProto) returns (AppendS3ResponseProto);
   rpc setReplication (SetReplicationRequestProto) returns (SetReplicationResponseProto);
   rpc setStoragePolicy(SetStoragePolicyRequestProto) returns(SetStoragePolicyResponseProto);
   rpc getStoragePolicy(GetStoragePolicyRequestProto) returns(GetStoragePolicyResponseProto);
