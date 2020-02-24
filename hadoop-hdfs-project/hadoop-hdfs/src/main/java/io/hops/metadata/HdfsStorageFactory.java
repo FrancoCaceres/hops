@@ -253,9 +253,6 @@ public class HdfsStorageFactory {
         entityContexts.put(BlockChecksum.class, new BlockChecksumContext(
             (BlockChecksumDataAccess) getDataAccess(
                 BlockChecksumDataAccess.class)));
-        entityContexts.put(S3ObjectChecksum.class, new S3ObjectChecksumContext(
-                (S3ObjectChecksumDataAccess<S3ObjectChecksum>) getDataAccess(
-                        S3ObjectChecksum.class)));
         entityContexts.put(QuotaUpdate.class, new QuotaUpdateContext(
             (QuotaUpdateDataAccess) getDataAccess(
                 QuotaUpdateDataAccess.class)));

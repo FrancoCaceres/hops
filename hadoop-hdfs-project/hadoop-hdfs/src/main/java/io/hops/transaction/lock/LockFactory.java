@@ -81,10 +81,6 @@ public class LockFactory {
     return new BlockChecksumLock(target, blockIndex);
   }
 
-  public Lock getS3ObjectChecksumLock(String target, int objectIndex) {
-    return new S3ObjectChecksumLock(target, objectIndex);
-  }
-
   public Lock getBlockLock() {
     return new BlockLock();
   }
