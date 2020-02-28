@@ -34,6 +34,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.PathIsNotEmptyDirectoryException;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.FsAction;
+import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.ipc.RetriableException;
 import org.apache.hadoop.ipc.RetryCache;
@@ -66,7 +67,7 @@ class FSDirDeleteOp {
    */
   static long delete(
       FSDirectory fsd, INodesInPath iip, BlocksMapUpdateInfo collectedBlocks,
-      List<INode> removedINodes, long mtime) throws IOException {
+      List<S3ObjectInfoContiguous> collectedS3Objects, List<INode> removedINodes, long mtime) throws IOException {
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSDirectory.delete: " + iip.getPath());
     }
@@ -74,7 +75,7 @@ class FSDirDeleteOp {
       if (!deleteAllowed(iip, iip.getPath()) ) {
         filesRemoved = -1;
       } else {
-        filesRemoved = unprotectedDelete(fsd, iip, collectedBlocks,
+        filesRemoved = unprotectedDelete(fsd, iip, collectedBlocks, collectedS3Objects,
                                          removedINodes, mtime);
       }
     return filesRemoved;
@@ -380,12 +381,13 @@ class FSDirDeleteOp {
 
     FSDirectory fsd = fsn.getFSDirectory();
     BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
+    List<S3ObjectInfoContiguous> collectedS3Objects = new ChunkedArrayList<>();
     List<INode> removedINodes = new ChunkedArrayList<>();
     
     long mtime = now();
     // Unlink the target directory from directory tree
     long filesRemoved = delete(
-        fsd, iip, collectedBlocks, removedINodes, mtime);
+        fsd, iip, collectedBlocks, collectedS3Objects, removedINodes, mtime);
     if (filesRemoved < 0) {
       return false;
     }
@@ -393,6 +395,7 @@ class FSDirDeleteOp {
 
     fsn.removeLeasesAndINodes(src, removedINodes);
     fsn.removeBlocks(collectedBlocks); // Incremental deletion of blocks
+    fsn.removeS3Objects(collectedS3Objects);
     collectedBlocks.clear();
 
     if (NameNode.stateChangeLog.isDebugEnabled()) {
@@ -436,7 +439,7 @@ class FSDirDeleteOp {
    */
   private static long unprotectedDelete(
       FSDirectory fsd, INodesInPath iip, BlocksMapUpdateInfo collectedBlocks,
-      List<INode> removedINodes, long mtime) throws IOException {
+      List<S3ObjectInfoContiguous> collectedS3Objects, List<INode> removedINodes, long mtime) throws IOException {
 
     // check if target node exists
     INode targetNode = iip.getLastINode();
@@ -466,8 +469,8 @@ class FSDirDeleteOp {
     }    
             
     // collect block
-    targetNode.destroyAndCollectBlocks(fsd.getBlockStoragePolicySuite(),
-        collectedBlocks, removedINodes);
+    targetNode.destroyAndCollectBlocksAndObjects(fsd.getBlockStoragePolicySuite(),
+        collectedBlocks, removedINodes, collectedS3Objects);
     
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedDelete: "

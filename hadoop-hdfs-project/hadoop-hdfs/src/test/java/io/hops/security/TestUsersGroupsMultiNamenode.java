@@ -151,6 +151,11 @@ public class TestUsersGroupsMultiNamenode {
     }
 
     @Override
+    public HdfsFileStatus appendS3(String src, String clientName) throws AccessControlException, FileNotFoundException, SafeModeException, UnresolvedLinkException, IOException {
+      return null;
+    }
+
+    @Override
     public boolean setReplication(String src, short replication)
         throws AccessControlException, DSQuotaExceededException,
         FileNotFoundException, SafeModeException, UnresolvedLinkException,

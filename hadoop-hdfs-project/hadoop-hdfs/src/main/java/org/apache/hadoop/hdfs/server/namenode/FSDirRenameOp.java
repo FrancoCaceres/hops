@@ -35,36 +35,25 @@ import io.hops.transaction.lock.TransactionLockTypes.INodeLockType;
 import io.hops.transaction.lock.TransactionLockTypes.INodeResolveType;
 import io.hops.transaction.lock.TransactionLockTypes.LockType;
 import io.hops.transaction.lock.TransactionLocks;
-import org.apache.hadoop.fs.FileAlreadyExistsException;
-import org.apache.hadoop.fs.InvalidPathException;
-import org.apache.hadoop.fs.Options;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.Options.Rename;
-import org.apache.hadoop.fs.ParentNotDirectoryException;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
+import org.apache.hadoop.hdfs.protocol.FSLimitException;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
+import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
+import org.apache.hadoop.hdfs.util.ChunkedArrayList;
+import org.apache.hadoop.util.Time;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.fs.UnresolvedLinkException;
-import org.apache.hadoop.fs.XAttr;
-import org.apache.hadoop.hdfs.protocol.FSLimitException;
-import org.apache.hadoop.hdfs.util.ChunkedArrayList;
-import org.apache.hadoop.util.Time;
+import java.util.*;
 
 class FSDirRenameOp {
   public static final Log LOG = LogFactory.getLog(FSDirRenameOp.class);
@@ -912,14 +901,16 @@ class FSDirRenameOp {
         throws QuotaExceededException, IOException {
       Preconditions.checkState(oldDstChild != null);
       BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
+      List<S3ObjectInfoContiguous> collectedS3Objects = new ChunkedArrayList<>();
       List<INode> removedINodes = new ChunkedArrayList<>();
       final boolean filesDeleted;
       
-      oldDstChild.destroyAndCollectBlocks(bsps, collectedBlocks, removedINodes);
+      oldDstChild.destroyAndCollectBlocksAndObjects(bsps, collectedBlocks, removedINodes, collectedS3Objects);
       filesDeleted = true;
       
       fsd.getFSNamesystem().removeLeasesAndINodes(src, removedINodes);
       fsd.getFSNamesystem().removeBlocks(collectedBlocks);
+      fsd.getFSNamesystem().removeS3Objects(collectedS3Objects);
       return filesDeleted;
     }
 

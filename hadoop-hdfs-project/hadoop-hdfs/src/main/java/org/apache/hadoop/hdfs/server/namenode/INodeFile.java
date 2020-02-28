@@ -369,8 +369,8 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
   }
 
   @Override
-  public void destroyAndCollectBlocks(BlockStoragePolicySuite bsps,
-      BlocksMapUpdateInfo collectedBlocks, final List<INode> removedINodes)
+  public void destroyAndCollectBlocksAndObjects(BlockStoragePolicySuite bsps,
+                                                BlocksMapUpdateInfo collectedBlocks, final List<INode> removedINodes, List<S3ObjectInfoContiguous> collectedS3Objects)
       throws StorageException, TransactionContextException {
     parent = null;
     BlockInfoContiguous[] blocks = getBlocks();
@@ -378,6 +378,14 @@ public class INodeFile extends INodeWithAdditionalFields implements BlockCollect
       for (BlockInfoContiguous blk : blocks) {
         blk.setBlockCollection(null);
         collectedBlocks.addDeleteBlock(blk);
+      }
+    }
+
+    S3ObjectInfoContiguous[] s3Objects = getS3Objects();
+    if(s3Objects != null && collectedS3Objects != null) {
+      for(S3ObjectInfoContiguous obj : s3Objects) {
+        obj.setObjectCollection(null);
+        collectedS3Objects.add(obj);
       }
     }
 

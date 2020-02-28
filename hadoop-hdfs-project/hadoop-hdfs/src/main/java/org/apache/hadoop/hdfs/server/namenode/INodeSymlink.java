@@ -17,19 +17,15 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
-import io.hops.exception.StorageException;
-import io.hops.exception.TransactionContextException;
-import io.hops.transaction.EntityManager;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
-import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
+import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
-import org.apache.hadoop.hdfs.server.namenode.XAttrFeature;
 
 /**
  * An {@link INode} representing a symbolic link.
@@ -81,9 +77,9 @@ public class INodeSymlink extends INodeWithAdditionalFields {
   }
   
   @Override
-  public void destroyAndCollectBlocks(final BlockStoragePolicySuite bsps,
-      BlocksMapUpdateInfo collectedBlocks,
-      final List<INode> removedINodes) {
+  public void destroyAndCollectBlocksAndObjects(final BlockStoragePolicySuite bsps,
+                                                BlocksMapUpdateInfo collectedBlocks,
+                                                final List<INode> removedINodes, List<S3ObjectInfoContiguous> collectedS3Objects) {
     removedINodes.add(this);
   }
 

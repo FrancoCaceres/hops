@@ -156,7 +156,7 @@ public class S3ObjectInfoContiguous extends S3Object {
     EntityManager.update(this);
   }
 
-  protected void remove()
+  public void remove()
           throws StorageException, TransactionContextException {
     EntityManager.remove(this);
   }

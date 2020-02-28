@@ -37,6 +37,7 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.*;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
+import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
 import org.apache.hadoop.hdfs.util.ChunkedArrayList;
 import org.apache.hadoop.hdfs.util.LongBitFormat;
 import org.apache.hadoop.util.LightWeightGSet.LinkedElement;
@@ -305,8 +306,7 @@ public abstract class INode implements Comparable<byte[]>, LinkedElement {
    * directory, the method goes down the subtree and collects blocks from the
    * descents, and clears its parent/children references as well. The method
    * also clears the diff list if the INode contains snapshot diff list.
-   *
-   * @param bsps
+   *  @param bsps
    *          block storage policy suite to calculate intended storage type usage
    *          This is needed because INodeReference#destroyAndCollectBlocks() needs
    *          to call INode#cleanSubtree(), which calls INode#computeQuotaUsage().
@@ -314,12 +314,12 @@ public abstract class INode implements Comparable<byte[]>, LinkedElement {
    *          blocks collected from the descents for further block
    *          deletion/update will be added to this map.
    * @param removedINodes
-   *          INodes collected from the descents for further cleaning up of
-   *          inodeMap
+ *          INodes collected from the descents for further cleaning up of
+   * @param collectedS3Objects s3 objects collected from the descents for further object deletion
    */
-  public abstract void destroyAndCollectBlocks(
-      BlockStoragePolicySuite bsps,
-      BlocksMapUpdateInfo collectedBlocks, List<INode> removedINodes) 
+  public abstract void destroyAndCollectBlocksAndObjects(
+          BlockStoragePolicySuite bsps,
+          BlocksMapUpdateInfo collectedBlocks, List<INode> removedINodes, List<S3ObjectInfoContiguous> collectedS3Objects)
       throws StorageException, TransactionContextException;
 
   /** Compute {@link ContentSummary}. Blocking call */

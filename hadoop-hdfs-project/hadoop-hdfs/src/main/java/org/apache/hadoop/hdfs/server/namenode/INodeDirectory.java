@@ -17,29 +17,29 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.hops.exception.StorageException;
 import io.hops.exception.TransactionContextException;
-import io.hops.metadata.hdfs.entity.INodeIdentifier;
 import io.hops.metadata.hdfs.entity.FileProvenanceEntry;
+import io.hops.metadata.hdfs.entity.INodeIdentifier;
 import io.hops.metadata.hdfs.entity.INodeMetadataLogEntry;
 import io.hops.metadata.hdfs.entity.MetaStatus;
 import io.hops.transaction.EntityManager;
+import org.apache.hadoop.fs.PathIsNotDirectoryException;
+import org.apache.hadoop.fs.StorageType;
+import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.hdfs.DFSUtil;
+import org.apache.hadoop.hdfs.protocol.HdfsConstantsClient;
+import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
+import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Collections;
 import java.util.List;
-import org.apache.hadoop.fs.PathIsNotDirectoryException;
-import org.apache.hadoop.fs.permission.PermissionStatus;
-import org.apache.hadoop.fs.StorageType;
-import org.apache.hadoop.hdfs.DFSUtil;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import org.apache.hadoop.hdfs.protocol.HdfsConstantsClient;
-import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 
 
 /**
@@ -600,14 +600,14 @@ public class INodeDirectory extends INodeWithAdditionalFields {
   }
 
   @Override
-  public void destroyAndCollectBlocks(final BlockStoragePolicySuite bsps,
-      BlocksMapUpdateInfo collectedBlocks, 
-      final List<INode> removedINodes)
+  public void destroyAndCollectBlocksAndObjects(final BlockStoragePolicySuite bsps,
+                                                BlocksMapUpdateInfo collectedBlocks,
+                                                final List<INode> removedINodes, List<S3ObjectInfoContiguous> collectedS3Objects)
       throws StorageException, TransactionContextException {
     List<INode> children = getChildren();
     if (children != null) {
       for (INode child : children) {
-        child.destroyAndCollectBlocks(bsps, collectedBlocks, removedINodes);
+        child.destroyAndCollectBlocksAndObjects(bsps, collectedBlocks, removedINodes, collectedS3Objects);
       }
     }
     parent = null;

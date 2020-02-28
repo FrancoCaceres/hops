@@ -238,6 +238,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
   static final int DEFAULT_MAX_CORRUPT_FILEBLOCKS_RETURNED = 100;
   static int BLOCK_DELETION_INCREMENT = 1000;
+  static int S3_OBJECT_DELETION_INCREMENT = 1000;
 
   private final boolean isPermissionEnabled;
   private final UserGroupInformation fsOwner;
@@ -1707,6 +1708,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
         if (!toRemoveBlocks.getToDeleteList().isEmpty()) {
           removeBlocks(toRemoveBlocks);
           toRemoveBlocks.clear();
+          // TODO FCG support S3 objects
         }
         return res;
       }
@@ -3949,6 +3951,19 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     while (iter.hasNext()) {
       for (int i = 0; i < BLOCK_DELETION_INCREMENT && iter.hasNext(); i++) {
           blockManager.removeBlock(iter.next());
+      }
+    }
+  }
+
+  public void removeS3Objects(List<S3ObjectInfoContiguous> s3Objects)
+      throws StorageException, TransactionContextException, IOException{
+    Iterator<S3ObjectInfoContiguous> iter = s3Objects.iterator();
+    while(iter.hasNext()) {
+      for(int i = 0; i < S3_OBJECT_DELETION_INCREMENT && iter.hasNext(); i++) {
+        S3ObjectInfoContiguous obj = iter.next();
+        if(obj != null) {
+          obj.remove();
+        }
       }
     }
   }
