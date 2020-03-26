@@ -19,6 +19,7 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 
 import com.google.common.collect.ImmutableList;
+import io.hops.common.INodeUtil;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
@@ -57,6 +58,24 @@ public class INodesInPath {
       path[index] = tmp.getLocalNameBytes();
       inodes[index] = tmp;
       tmp = tmp.getParent();
+    }
+    return new INodesInPath(inodes, path);
+  }
+
+  static INodesInPath fromINodeNoTransaction(INode inode) throws StorageException, TransactionContextException {
+    int depth = 1 + INodeUtil.findINodeDepthWithNoTransaction(inode);
+    int index = depth;
+    INode tmp = inode;
+    final byte[][] path = new byte[depth][];
+    final INode[] inodes = new INode[depth];
+    while (tmp != null) {
+      index--;
+      path[index] = tmp.getLocalNameBytes();
+      inodes[index] = tmp;
+      if(tmp.isRoot()) {
+        break;
+      }
+      tmp = INodeUtil.getNode(tmp.getParentId(), false);
     }
     return new INodesInPath(inodes, path);
   }

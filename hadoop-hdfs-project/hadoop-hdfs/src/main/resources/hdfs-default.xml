@@ -2041,47 +2041,6 @@
   </property>
 
   <property>
-    <name>dfs.namenode.object-storage.enabled</name>
-    <value>false</value>
-    <description>
-      Whether to use a cloud object storage service to store files. Currently
-      only AWS is supported.
-    </description>
-  </property>
-
-  <property>
-    <name>dfs.namenode.object-storage.s3.bucket</name>
-    <value>se.kth.fjcg.thesis</value>
-    <description>
-      S3 bucket to use.
-    </description>
-  </property>
-
-  <property>
-    <name>dfs.namenode.object-storage.s3.bucket.region</name>
-    <value>eu-north-1</value>
-    <description>
-      Region where S3 bucket is located.
-    </description>
-  </property>
-
-  <property>
-    <name>dfs.namenode.object-storage.s3.append-suffix</name>
-    <value>*</value>
-    <description>
-      String to append at the end of an S3 object key to signal it is an append object.
-    </description>
-  </property>
-
-  <property>
-    <name>dfs.client.object-storage.part-size</name>
-    <value>5242880</value>
-    <description>
-      Size of part to upload in bytes. Default is 5MB.
-    </description>
-  </property>
-
-  <property>
     <name>dfs.client.xceiver.socket.factory.class</name>
     <value>org.apache.hadoop.net.StandardSocketFactory</value>
     <description>Socket Factory implementation to use when DFSClient connects
@@ -2102,6 +2061,145 @@
     <value>/hopsworks-api/api/admin/credentials/x509</value>
     <description>REST endpoint in Hopsworks that is combined with hops.hopsworks.host to
       get X.509 security material for a Hopsworks user.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.enabled</name>
+    <value>false</value>
+    <description>
+      Whether to use a cloud object storage service to store files. Currently
+      only AWS S3 is supported and every following configuration is assumed to be for it.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.s3.bucket</name>
+    <value>se.kth.fjcg.thesis</value>
+    <description>
+      S3 bucket to use.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.s3.bucket.region</name>
+    <value>eu-north-1</value>
+    <description>
+      Region where the S3 bucket is located.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.s3.append-suffix</name>
+    <value>*</value>
+    <description>
+      String to append at the end of an S3 object key to signal it is an append object. For example, test.txt* would
+      be the object key for an append to the file test.txt
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.client.object-storage.part-size</name>
+    <value>5242880</value>
+    <description>
+      Size of part to upload to S3 in bytes. Default is 5MB.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.object-management.enabled</name>
+    <value>false</value>
+    <description>
+      Determines whether object management is enabled.
+      Object management refers to the execution of background processes that continuously strive to keep a consistent
+      view of the file system data in the object storage service. This is done by deleting objects that are no longer
+      being tracked and by performing object consolidation. Object consolidation refers to the process of merging
+      several objects that make up a single file into one, renaming objects to reflect the new name of the files
+      they refer to, or decrease the size of objects after file truncation.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.object-management.deletion.leader.lookup-interval</name>
+    <value>3000</value>
+    <description>
+      Determines the lookup interval in milliseconds for S3 object deletables that are available for scheduling.
+      S3 object deletables that are scheduled are meant to be polled by the assigned workers and perform the actual API
+      calls to S3 to delete the objects ultimately.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.object-management.deletion.leader.schedule-timeout</name>
+    <value>10000</value>
+    <description>
+      Determines the schedule timeout in milliseconds for S3 object deletables that have failed to be completed. After
+      this timeout, an S3 object deletable that has been scheduled but not completed will be rescheduled.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.object-management.deletion.leader.fetch-size</name>
+    <value>100</value>
+    <description>
+      Determines the number of S3 object deletables that will be fetched for scheduling by the deletion leader.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.object-management.deletion.worker.lookup-interval</name>
+    <value>1000</value>
+    <description>
+      Determines the lookup interval in milliseconds for S3 object deletables that have been assigned to the current
+      worker. Note that lookups happen after previously looked up deletables have been processed (i.e. executing
+      deletables blocks the lookup loop).
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.object-management.consolidation.leader.lookup-interval</name>
+    <value>3000</value>
+    <description>
+      Determines the lookup interval in milliseconds for files that are available for scheduling.
+      Files (S3 processables) that are scheduled are meant to be polled by the assigned workers and perform the actual API
+      calls to S3 to merge, rename, and/or truncate objects.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.object-management.consolidation.leader.schedule-timeout</name>
+    <value>60000</value>
+    <description>
+      Determines the schedule timeout in milliseconds for S3 object processables that have failed to be completed. After
+      this timeout, an S3 processable that has been scheduled but not completed will be rescheduled.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.object-management.consolidation.leader.fetch-size</name>
+    <value>100</value>
+    <description>
+      Determines the number of S3 processable that will be fetched for scheduling by the consolidation leader.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.object-management.consolidation.worker.lookup-interval</name>
+    <value>1000</value>
+    <description>
+      Determines the lookup interval in milliseconds for S3 processables that have been assigned to the current
+      worker. Note that lookups happen after previously looked up processables have been processed (i.e. executing
+      processables blocks the lookup loop).
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.namenode.object-storage.object-management.consolidation.worker.lookup-interval</name>
+    <value>1000</value>
+    <description>
+      Determines the lookup interval in milliseconds for S3 processables that have been assigned to the current
+      worker. Note that lookups happen after previously looked up processables have been processed (i.e. executing
+      processables blocks the lookup loop).
     </description>
   </property>
 </configuration>

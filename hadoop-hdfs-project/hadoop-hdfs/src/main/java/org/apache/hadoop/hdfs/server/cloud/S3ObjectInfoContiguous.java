@@ -12,7 +12,7 @@ import java.util.Comparator;
 
 /**
  * S3ObjectInfoContiguous class maintains for a given
- * block the {@link S3ObjectCollection} it is part of
+ * S3 object the {@link S3ObjectCollection} it is part of
  */
 @InterfaceAudience.Private
 public class S3ObjectInfoContiguous extends S3Object {

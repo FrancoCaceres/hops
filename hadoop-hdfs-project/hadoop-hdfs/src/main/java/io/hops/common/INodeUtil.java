@@ -19,16 +19,8 @@ import io.hops.exception.StorageException;
 import io.hops.exception.TransactionContextException;
 import io.hops.metadata.HdfsStorageFactory;
 import io.hops.metadata.adaptor.INodeDALAdaptor;
-import io.hops.metadata.hdfs.dal.AceDataAccess;
-import io.hops.metadata.hdfs.dal.BlockLookUpDataAccess;
-import io.hops.metadata.hdfs.dal.INodeDataAccess;
-import io.hops.metadata.hdfs.dal.LeaseDataAccess;
-import io.hops.metadata.hdfs.dal.LeasePathDataAccess;
-import io.hops.metadata.hdfs.entity.Ace;
-import io.hops.metadata.hdfs.entity.BlockLookUp;
-import io.hops.metadata.hdfs.entity.INodeIdentifier;
-import io.hops.metadata.hdfs.entity.LeasePath;
-import io.hops.metadata.hdfs.entity.ProjectedINode;
+import io.hops.metadata.hdfs.dal.*;
+import io.hops.metadata.hdfs.entity.*;
 import io.hops.transaction.EntityManager;
 import io.hops.transaction.handler.HDFSOperationType;
 import io.hops.transaction.handler.LightWeightRequestHandler;
@@ -40,26 +32,19 @@ import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.AclException;
 import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.HdfsConstantsClient;
 import org.apache.hadoop.hdfs.protocol.UnresolvedPathException;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguousUnderConstruction;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeAclHelper;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.Lease;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
-import org.apache.hadoop.hdfs.protocol.HdfsConstantsClient;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguousUnderConstruction;
+
 import static org.apache.hadoop.hdfs.server.namenode.INode.EMPTY_LIST;
 
 public class INodeUtil {
@@ -113,6 +98,23 @@ public class INodeUtil {
     INodeDataAccess<INode> da = (INodeDataAccess) HdfsStorageFactory
         .getDataAccess(INodeDataAccess.class);
     return da.findInodeByIdFTIS(inodeId);
+  }
+
+  public static short findINodeDepthWithNoTransaction(INode iNode) throws StorageException {
+    if(iNode.getId() == INodeDirectory.ROOT_INODE_ID) {
+      return INodeDirectory.ROOT_DIR_DEPTH;
+    }
+    INode parentINode = findINodeWithNoTransaction(iNode.getParentId());
+    return (short) (findINodeDepthWithNoTransaction(parentINode)+ 1);
+  }
+
+  public static byte findINodeStoragePolicyWithNoTransaction(INode iNode) throws StorageException {
+    byte id = iNode.getLocalStoragePolicyID();
+    if(id == HdfsConstantsClient.BLOCK_STORAGE_POLICY_ID_UNSPECIFIED) {
+      INode parentINode = findINodeWithNoTransaction(iNode.getParentId());
+      return parentINode != null ? findINodeStoragePolicyWithNoTransaction(parentINode) : id;
+    }
+    return id;
   }
 
   public static boolean resolvePathWithNoTransaction(String path,

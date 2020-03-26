@@ -638,6 +638,24 @@ public class DFSConfigKeys extends CommonConfigurationKeys {
   public static final String DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY = "dfs.namenode.object-storage.s3.bucket.region";
   public static final String DFS_NAMENODE_OBJECT_STORAGE_S3_APPEND_SUFFIX_KEY = "dfs.namenode.object-storage.s3.append-suffix";
   public static final String DFS_NAMENODE_OBJECT_STORAGE_S3_APPEND_SUFFIX_DEFAULT = "*";
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_ENABLED_KEY = "dfs.namenode.object-storage.object-management.enabled";
+  public static final boolean DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_ENABLED_DEFAULT = false;
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_DELETION_LEADER_LOOKUP_INTERVAL_KEY = "dfs.namenode.object-storage.object-management.deletion.leader.lookup-interval";
+  public static final int DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_DELETION_LEADER_LOOKUP_INTERVAL_DEFAULT = 3_000;
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_DELETION_LEADER_SCHEDULE_TIMEOUT_KEY = "dfs.namenode.object-storage.object-management.deletion.leader.schedule-timeout";
+  public static final int DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_DELETION_LEADER_SCHEDULE_TIMEOUT_DEFAULT = 10_000;
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_DELETION_LEADER_FETCH_SIZE_KEY = "dfs.namenode.object-storage.object-management.deletion.leader.fetch-size";
+  public static final int DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_DELETION_LEADER_FETCH_SIZE_DEFAULT = 100;
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_DELETION_WORKER_LOOKUP_INTERVAL_KEY = "dfs.namenode.object-storage.object-management.deletion.worker.lookup-interval";
+  public static final int DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_DELETION_WORKER_LOOKUP_INTERVAL_DEFAULT = 1000;
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_CONSOLIDATION_LEADER_LOOKUP_INTERVAL_KEY = "dfs.namenode.object-storage.object-management.consolidation.leader.lookup-interval";
+  public static final int DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_CONSOLIDATION_LEADER_LOOKUP_INTERVAL_DEFAULT = 3_000;
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_CONSOLIDATION_LEADER_SCHEDULE_TIMEOUT_KEY = "dfs.namenode.object-storage.object-management.consolidation.leader.schedule-timeout";
+  public static final int DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_CONSOLIDATION_LEADER_SCHEDULE_TIMEOUT_DEFAULT = 60_000;
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_CONSOLIDATION_LEADER_FETCH_SIZE_KEY = "dfs.namenode.object-storage.object-management.consolidation.leader.fetch-size";
+  public static final int DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_CONSOLIDATION_LEADER_FETCH_SIZE_DEFAULT = 100;
+  public static final String DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_CONSOLIDATION_WORKER_LOOKUP_INTERVAL_KEY = "dfs.namenode.object-storage.object-management.consolidation.worker.lookup-interval";
+  public static final int DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_CONSOLIDATION_WORKER_LOOKUP_INTERVAL_DEFAULT = 1_000;
 
   // WebHDFS retry policy
   @Deprecated

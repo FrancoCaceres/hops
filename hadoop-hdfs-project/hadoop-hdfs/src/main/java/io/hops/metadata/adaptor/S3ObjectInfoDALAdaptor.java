@@ -7,6 +7,7 @@ import io.hops.metadata.hdfs.entity.S3ObjectInfo;
 import org.apache.hadoop.hdfs.protocol.S3Object;
 import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -74,6 +75,20 @@ public class S3ObjectInfoDALAdaptor extends
   @Override
   public List<S3ObjectInfoContiguous> findByIds(long[] objectIds, long[] inodeIds) throws StorageException {
     return (List<S3ObjectInfoContiguous>)convertDALtoHDFS(dataAccess.findByIds(objectIds, inodeIds));
+  }
+
+  @Override
+  public void add(S3ObjectInfoContiguous s3ObjectInfoContiguous) throws StorageException {
+    dataAccess.add(convertHDFStoDAL(s3ObjectInfoContiguous));
+  }
+
+  @Override
+  public void deleteAll(List<S3ObjectInfoContiguous> objects) throws StorageException {
+    List<S3ObjectInfo> dals = new ArrayList<>(objects.size());
+    for(S3ObjectInfoContiguous hdfs : objects) {
+      dals.add(convertHDFStoDAL(hdfs));
+    }
+    dataAccess.deleteAll(dals);
   }
 
   @Override

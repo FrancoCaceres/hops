@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_ENABLED_KEY;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_ENABLED_KEY;
 import static org.junit.Assert.*;
 
 public class TestS3Delete {
@@ -40,6 +41,7 @@ public class TestS3Delete {
   static {
     conf = new HdfsConfiguration();
     conf.setBoolean(DFS_NAMENODE_OBJECT_STORAGE_ENABLED_KEY, true);
+    conf.setBoolean(DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_ENABLED_KEY, true);
   }
 
   @Before
@@ -130,6 +132,44 @@ public class TestS3Delete {
 
     assertTrue("Deletables not found for file1's S3 objects", deletablesExist(objs1, deletables));
     assertTrue("Deletables not found for file2's S3 objects", deletablesExist(objs2, deletables));
+  }
+
+  @Test(timeout = 20_000)
+  public void testTermination() throws IOException {
+    Path file = new Path(fileName1);
+    Path parent = file.getParent();
+    fs.mkdirs(parent);
+
+    byte[] fileContent = AppendTestUtil.randomBytes(seed, fileSize);
+
+    // Write
+    FSDataOutputStream stm = fs.create(file, true, fs.getConf()
+            .getInt(CommonConfigurationKeys.IO_FILE_BUFFER_SIZE_KEY, defaultBufferSize), replication, blockSize);
+    stm.write(fileContent, 0, fileSize);
+    stm.close();
+
+    // Check that file exists
+    assertTrue(file + " should be a file", fs.getFileStatus(file).isFile());
+    List<S3Object> objs = getS3ObjectsForPath(file);
+
+    // Delete
+    fs.delete(file, false);
+
+    // Check that file does not exist
+    assertFalse(file + " should not exist", fs.exists(file));
+
+    while(true) {
+      List<S3ObjectDeletable> deletables = getAllDeletables();
+      if(deletables.size() == 0) {
+        System.out.println();
+        break;
+      }
+      try {
+        Thread.sleep(1000);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
   }
 
   private List<S3ObjectDeletable> getAllDeletables() throws IOException {

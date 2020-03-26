@@ -301,6 +301,9 @@ class FSDirConcatOp {
     fsd.unprotectedUpdateCount(targetIIP, targetIIP.length() - 1, deltas);
     EntityManager
         .snapshotMaintenance(HdfsTransactionContextMaintenanceCmds.Concat,
-            trg_param, srcs_param, oldBlks);
+            trg_param, srcs_param, oldBlks, oldS3Objects);
+    if(trgInode.isFileStoredInS3()) {
+      S3CloudManager.createS3Processable(trgInode.getId());
+    }
   }
 }

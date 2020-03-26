@@ -174,4 +174,17 @@ public class S3Object implements Writable, Comparable<S3Object> {
   public void setChecksumNoPersistence(long checksum) {
     this.checksum = checksum;
   }
+
+  @Override
+  public String toString() {
+    return "S3Object{" +
+            "objectId=" + objectId +
+            ", objectIndex=" + objectIndex +
+            ", region='" + region + '\'' +
+            ", bucket='" + bucket + '\'' +
+            ", key='" + key + '\'' +
+            ", versionId='" + versionId + '\'' +
+            ", numBytes=" + numBytes +
+            '}';
+  }
 }

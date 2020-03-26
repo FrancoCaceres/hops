@@ -45,6 +45,15 @@ public class S3File {
     this.objects = objects;
   }
 
+  public void setSubclassObjects(List<? extends S3Object> objects) {
+    if(this.objects == null) {
+      this.objects = new ArrayList<>();
+    } else {
+      this.objects.clear();
+    }
+    this.objects.addAll(objects);
+  }
+
   public boolean isUnderConstruction() {
     return underConstruction;
   }
@@ -102,11 +111,19 @@ public class S3File {
       // Case 4: requested range is entirely within the object
       // ------[####obj####]-------
       // --------[#range#]---------
-      if(start >= objStart && start <= objEnd && end >= objStart && end <= objEnd) {
+      if(start > objStart && start < objEnd && end > objStart && end < objEnd) {
         res.add(new RangedS3Object(obj, start - objStart, end - start + 1));
       }
       pos += obj.getNumBytes();
     }
     return res;
+  }
+
+  public List<RangedS3Object> getObjectsInFullRange() {
+    long size = 0;
+    for(S3Object obj : objects) {
+      size += obj.getNumBytes();
+    }
+    return getObjectsInRange(0, size - 1);
   }
 }

@@ -3665,16 +3665,20 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
     finalizeINodeFileUnderConstruction(src, pendingFile);
 
+    if(isS3Append(pendingFile)) {
+      S3CloudManager.createS3Processable(pendingFile.getId());
+    }
+
     NameNode.stateChangeLog
             .info("DIR* completeFileStoredInS3: " + src + " is closed by " + holder);
     return true;
   }
 
   private boolean isS3Append(INodeFile file) throws TransactionContextException, StorageException {
-    return file.getS3Objects().length > 0;
+    return file.getS3Objects().length > 1;
   }
 
-  private S3ObjectInfoContiguous createS3Object(long inodeId, String key, String versionId, long size, long checksum,
+  public S3ObjectInfoContiguous createS3Object(long inodeId, String key, String versionId, long size, long checksum,
                                                 boolean isAppend)
           throws IOException {
     String region = conf.get(DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY);

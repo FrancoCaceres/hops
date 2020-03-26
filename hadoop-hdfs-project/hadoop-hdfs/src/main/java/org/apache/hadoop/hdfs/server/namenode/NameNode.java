@@ -54,6 +54,7 @@ import org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocols;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeRegistration;
+import org.apache.hadoop.ipc.RefreshCallQueueProtocol;
 import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.metrics2.util.MBeans;
@@ -63,13 +64,16 @@ import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.RefreshAuthorizationPolicyProtocol;
 import org.apache.hadoop.security.ssl.RevocationListFetcherService;
-import org.apache.hadoop.ipc.RefreshCallQueueProtocol;
 import org.apache.hadoop.tools.GetUserMappingsProtocol;
 import org.apache.hadoop.tracing.TraceAdminProtocol;
+import org.apache.hadoop.tracing.TraceUtils;
+import org.apache.hadoop.tracing.TracerConfigurationManager;
 import org.apache.hadoop.util.ExitUtil.ExitException;
+import org.apache.hadoop.util.JvmPauseMonitor;
 import org.apache.hadoop.util.ServicePlugin;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.Time;
+import org.apache.htrace.core.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,32 +88,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.*;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.*;
-import org.apache.hadoop.tracing.TraceUtils;
-import org.apache.hadoop.tracing.TracerConfigurationManager;
-import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.FS_DEFAULT_NAME_KEY;
-import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.FS_TRASH_INTERVAL_DEFAULT;
-import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.FS_TRASH_INTERVAL_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_METRICS_PERCENTILES_INTERVALS_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_HTTPS_ADDRESS_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_DEFAULT;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_HTTP_BIND_HOST_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_KERBEROS_INTERNAL_SPNEGO_PRINCIPAL_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_KERBEROS_PRINCIPAL_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_KEYTAB_FILE_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_PLUGINS_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_RPC_BIND_HOST_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SERVICE_RPC_ADDRESS_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SERVICE_RPC_BIND_HOST_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_STARTUP_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SUPPORT_ALLOW_FORMAT_DEFAULT;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SUPPORT_ALLOW_FORMAT_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.HADOOP_USER_GROUP_METRICS_PERCENTILES_INTERVALS;
 import static org.apache.hadoop.util.ExitUtil.terminate;
-import org.apache.hadoop.util.JvmPauseMonitor;
-import org.apache.htrace.core.Tracer;
 
 /**
  * ********************************************************
@@ -267,6 +248,8 @@ public class NameNode implements NameNodeStatusMXBean {
   private JvmPauseMonitor pauseMonitor;
 
   protected LeaderElection leaderElection;
+
+  protected S3CloudManager s3CloudManager;
   
   protected RevocationListFetcherService revocationListFetcherService;
   /**
@@ -638,6 +621,8 @@ public class NameNode implements NameNodeStatusMXBean {
     startLeaderElectionService();
 
     startMDCleanerService();
+
+    startS3CloudManagerService();
     
     namesystem.startCommonServices(conf);
     registerNNSMXBean();
@@ -685,6 +670,15 @@ public class NameNode implements NameNodeStatusMXBean {
   }
 
   private void stopCommonServices() {
+    if(s3CloudManager != null && s3CloudManager.isRunning()) {
+      try {
+        LOG.info("About to stop S3 Cloud Manager");
+        s3CloudManager.stopThread();
+      } catch (InterruptedException e) {
+        LOG.warn("S3 Cloud Manager thread stopped", e);
+      }
+    }
+
     if (leaderElection != null && leaderElection.isRunning()) {
       try {
         leaderElection.stopElectionThread();
@@ -1411,6 +1405,17 @@ public class NameNode implements NameNodeStatusMXBean {
     } catch (InterruptedException e) {
       LOG.warn("NN was interrupted");
     }
+  }
+
+  private void startS3CloudManagerService() {
+    if(!conf.getBoolean(DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_ENABLED_KEY,
+            DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_ENABLED_DEFAULT)) {
+      LOG.info("Skipping startup of S3 Cloud Manager because object management is disabled.");
+      return;
+    }
+    LOG.info("Starting S3 Cloud Manager Service for object management.");
+    s3CloudManager = new S3CloudManager(this, conf);
+    s3CloudManager.start();
   }
   
   private void createAndStartCRLFetcherService(Configuration conf) throws Exception {

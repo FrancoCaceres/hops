@@ -149,7 +149,7 @@ public class S3UploadOutputStream extends OutputStream {
     return size;
   }
 
-  synchronized String getVersionId() throws ClosedChannelException {
+  public synchronized String getVersionId() throws ClosedChannelException {
     throwIfOpen();
     return versionId;
   }

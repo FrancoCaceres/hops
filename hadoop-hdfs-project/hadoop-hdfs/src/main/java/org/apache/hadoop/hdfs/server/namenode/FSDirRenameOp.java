@@ -339,6 +339,7 @@ class FSDirRenameOp {
           // add src to the destination
           added = tx.addSourceToDestination();
           if (added) {
+            S3CloudManager.createS3Processable(srcINodeID);
             if (NameNode.stateChangeLog.isDebugEnabled()) {
               NameNode.stateChangeLog.debug(
                   "DIR* FSDirectory.unprotectedRenameTo: " + src + " is renamed to " + dst);
