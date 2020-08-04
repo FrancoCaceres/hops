@@ -24,31 +24,24 @@ import io.hops.transaction.handler.HopsTransactionalRequestHandler;
 import io.hops.transaction.lock.INodeLock;
 import io.hops.transaction.lock.LockFactory;
 import io.hops.transaction.lock.LockFactory.BLK;
-import io.hops.transaction.lock.TransactionLockTypes;
 import io.hops.transaction.lock.TransactionLockTypes.INodeLockType;
 import io.hops.transaction.lock.TransactionLockTypes.INodeResolveType;
 import io.hops.transaction.lock.TransactionLocks;
 import org.apache.commons.io.Charsets;
 import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.DirectoryListingStartAfterNotFoundException;
+import org.apache.hadoop.fs.FileEncryptionInfo;
 import org.apache.hadoop.fs.InvalidPathException;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DFSUtil;
-import org.apache.hadoop.hdfs.protocol.DirectoryListing;
-import org.apache.hadoop.hdfs.protocol.HdfsConstantsClient;
-import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
-import org.apache.hadoop.hdfs.protocol.HdfsLocatedFileStatus;
-import org.apache.hadoop.hdfs.protocol.LocatedBlock;
-import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.*;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.hadoop.fs.FileEncryptionInfo;
-import org.apache.hadoop.hdfs.protocol.FsPermissionExtension;
 
 class FSDirStatAndListingOp {
   static DirectoryListing getListingInt(
@@ -91,6 +84,7 @@ class FSDirStatAndListingOp {
           locks.add(lf.getBlockLock()).add(lf.getBlockRelated(BLK.RE, BLK.ER, BLK.CR, BLK.UC, BLK.CA));
         }
         locks.add(lf.getAcesLock());
+        locks.add(lf.getS3ObjectLock());
         locks.add(lf.getEZLock());
         locks.add(lf.getXAttrLock(FSDirXAttrOp.XATTR_FILE_ENCRYPTION_INFO, src));
       }
@@ -388,7 +382,8 @@ class FSDirStatAndListingOp {
         fsd.getFileEncryptionInfo(node, iip);
     if (node.isFile()) {
       final INodeFile fileNode = node.asFile();
-      isStoredInDB = fileNode.isFileStoredInDB();     
+      isStoredInDB = fileNode.isFileStoredInDB();
+      boolean isStoredInS3 = fileNode.isFileStoredInS3();
       if(isStoredInDB){
         size = fileNode.getSize();
       } else {
@@ -401,7 +396,7 @@ class FSDirStatAndListingOp {
       final long fileSize = isUc ?
           fileNode.computeFileSizeNotIncludingLastUcBlock() : size;
 
-      if (isStoredInDB) {
+      if (isStoredInDB || isStoredInS3) {
         loc = fsd.getFSNamesystem().getBlockManager().createPhantomLocatedBlocks(fileNode,null,isUc,false, feInfo);
       } else {
         loc = fsd.getFSNamesystem().getBlockManager().createLocatedBlocks(

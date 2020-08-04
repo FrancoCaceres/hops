@@ -1096,6 +1096,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
             .add(lf.getBlockRelated(BLK.RE, BLK.ER, BLK.CR, BLK.UC, BLK.CA));
         locks.add(lf.getAcesLock());        
         locks.add(lf.getEZLock());
+        locks.add(lf.getS3ObjectLock());
         if(isSuperUser) {
           locks.add(lf.getXAttrLock());
         }else {
@@ -1259,6 +1260,9 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     if (inodeFile.isFileStoredInDB()) {
       LOG.debug("SMALL_FILE The file is stored in the database. Returning Phantom Blocks");
       ret = getPhantomBlockLocationsUpdateTimes(srcArg, src, needBlockToken);
+    } else if(inodeFile.isFileStoredInS3()) {
+      LOG.debug("S3_FILE The file is stored in S3. Returning Phantom Blocks");
+      ret = getPhantomBlockLocationsUpdateTimes(srcArg, src, needBlockToken);
     } else {
       ret = getBlockLocationsInt(srcArg, src, offset, length, needBlockToken);
     }
@@ -1290,11 +1294,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     GetS3FileResult res;
     final INodeFile inodeFile = INodeFile.valueOf(dir.getINode(src), src);
     if(!inodeFile.isFileStoredInS3()) {
-      throw new UnsupportedActionException("Cannot get a block-based file as an S3-based file");
-    } else if (inodeFile.isFileStoredInDB()) {
-      LOG.debug("SMALL_FILE The file is stored in the database. Returning Phantom Blocks");
-      // TODO FCG Create and return phantom s3File
-      throw new UnsupportedOperationException("Phantom S3 file not implemented");
+      throw new UnsupportedActionException("Cannot get a block-based or DB-stored file as an S3-based file");
     } else {
       FSPermissionChecker pc = getPermissionChecker();
 
@@ -1353,9 +1353,11 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     final FileEncryptionInfo feInfo =
       FSDirectory.isReservedRawName(srcArg) ?
       null : dir.getFileEncryptionInfo(inode, iip);
-            
+
+    byte[] data = inode.isFileStoredInS3() ? null : inode.getFileDataInDB();
+
     final LocatedBlocks blocks = blockManager
-          .createPhantomLocatedBlocks(inode, inode.getFileDataInDB(),
+          .createPhantomLocatedBlocks(inode, data,
               inode.isUnderConstruction(), needBlockToken, feInfo);
     
     final long now = now();
@@ -1501,6 +1503,11 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
    */
   boolean setReplication(final String src, final short replication)
       throws IOException {
+    NameNode.stateChangeLog.info(String.format("Skipping setting replication for " +
+            "%s due to object storage being enabled", src));
+    if(isObjectStorageEnabled()) {
+      return true;
+    }
     boolean success = false;
     try {
       checkNameNodeSafeMode("Cannot set replication for " + src);
@@ -1684,6 +1691,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
         locks.add(il).add(lf.getBlockLock()).add(
             lf.getBlockRelated(BLK.RE, BLK.CR, BLK.ER, BLK.UC, BLK.UR, BLK.IV, BLK.PE))
                     .add(lf.getAllUsedHashBucketsLock());
+        locks.add(lf.getS3ObjectLock());
         locks.add(lf.getLeaseLock(LockType.WRITE, clientName))
               .add(lf.getLeasePathLock(LockType.WRITE));
         if (isErasureCodingEnabled()) {
@@ -1772,6 +1780,13 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       file.setSize(newData.length);
       return true; //truncate is ready
     }
+    if(file.isFileStoredInS3()) {
+      // TODO FCG: When the file is stored in S3 the quota management does
+      //  not take effect. Update accordingly.
+      truncateS3(file, newLength);
+      file.recomputeFileSize();
+      return true;
+    }
     if(!onBlockBoundary) {
       // Open file for write, but don't log into edits
       long lastBlockDelta = file.computeFileSize() - newLength;
@@ -1786,6 +1801,30 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     file.recomputeFileSize();  
     return onBlockBoundary;
 }
+
+  void truncateS3(INodeFile file, long newLength) throws TransactionContextException, StorageException {
+    S3ObjectInfoContiguous[] s3Objects = file.getS3Objects();
+    if(s3Objects == null || s3Objects.length == 0) {
+      return;
+    }
+    long sizeAcc = 0L;
+    long leftToFill = newLength;
+
+    for(S3ObjectInfoContiguous obj : s3Objects) {
+      if(sizeAcc + obj.getNumBytes() <= newLength) { // Object can be fully kept
+        sizeAcc += obj.getNumBytes();
+        leftToFill -= obj.getNumBytes();
+        continue;
+      } else if(leftToFill > 0) { // Object can be partially kept (last object to keep)
+        obj.setNumBytes(leftToFill);
+        sizeAcc += obj.getNumBytes();
+        leftToFill -= obj.getNumBytes();
+      } else { // Object should be removed
+        obj.setObjectCollection(null);
+        obj.remove();
+      }
+    }
+  }
 
   /**
    * Convert current INode to UnderConstruction.
@@ -2065,6 +2104,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
             .add(lf.getLeasePathLock(LockType.READ_COMMITTED)).add(
             lf.getBlockRelated(BLK.RE, BLK.CR, BLK.ER, BLK.UC, BLK.UR,
                 BLK.PE, BLK.IV));
+        locks.add(lf.getS3ObjectLock());
 
         locks.add(lf.getAllUsedHashBucketsLock());
 
@@ -2466,6 +2506,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
                     .add(lf.getLeasePathLock(LockType.READ_COMMITTED)).add(lf.getBlockLock())
                     .add(lf.getBlockRelated(BLK.RE, BLK.CR, BLK.ER, BLK.UC, BLK.UR))
                     .add(lf.getAcesLock());
+            locks.add(lf.getS3ObjectLock());
           }
 
           @Override
@@ -3589,6 +3630,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
     checkNameNodeSafeMode("Cannot complete S3 file " + src);
 
+    // TODO FCG Currently storing in db is not supported when S3 is enabled
     if (data != null) {
       return completeFileStoredInDataBase(src, holder,fileId, data);
     } else {
@@ -3660,12 +3702,14 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     pendingFile.setStoragePolicyID(HdfsConstants.S3_STORAGE_POLICY_ID);
     S3ObjectInfoContiguous obj = createS3Object(pendingFile.getId(), DFSUtil.removeLeadingSlash(src),
             versionId, size, checksum, isS3Append(pendingFile));
-    pendingFile.addS3Object(obj);
-    pendingFile.recomputeFileSize();
+    if(obj != null) {
+      pendingFile.addS3Object(obj);
+      pendingFile.recomputeFileSize();
+    }
 
     finalizeINodeFileUnderConstruction(src, pendingFile);
 
-    if(isS3Append(pendingFile)) {
+    if(isS3Append(pendingFile) && obj != null) {
       S3CloudManager.createS3Processable(pendingFile.getId());
     }
 
@@ -3675,12 +3719,15 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   }
 
   private boolean isS3Append(INodeFile file) throws TransactionContextException, StorageException {
-    return file.getS3Objects().length > 1;
+    return file.getS3Objects().length > 0;
   }
 
   public S3ObjectInfoContiguous createS3Object(long inodeId, String key, String versionId, long size, long checksum,
                                                 boolean isAppend)
           throws IOException {
+    if(size == 0) {
+      return null;
+    }
     String region = conf.get(DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY);
     String bucket = conf.get(DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_KEY);
     Preconditions.checkNotNull(region);
@@ -4141,6 +4188,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
         locks.add(lf.getLeaseLock(LockType.READ, clientName))
             .add(lf.getLeasePathLock(LockType.READ_COMMITTED))
             .add(lf.getBlockLock());
+        locks.add(lf.getS3ObjectLock());
       }
 
       @Override

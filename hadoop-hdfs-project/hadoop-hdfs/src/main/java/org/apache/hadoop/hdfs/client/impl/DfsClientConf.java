@@ -76,6 +76,9 @@ public class DfsClientConf {
   private final long datanodeRestartTimeout;
   private final long slowIoWarningThresholdMs;
   private final int objectStorageChunkSize;
+  private final int objectStorageMaxThreads;
+  private final int objectStorageMaxTasks;
+  private final String objectStorageBucketRegion;
   final int dbFileMaxSize;
   //only for testing
   final boolean forceClientToWriteSFToDisk;
@@ -133,7 +136,18 @@ public class DfsClientConf {
     objectStorageChunkSize = conf.getInt(
             DFSConfigKeys.DFS_CLIENT_OBJECT_STORAGE_PART_SIZE_KEY,
             DFSConfigKeys.DFS_CLIENT_OBJECT_STORAGE_PART_SIZE_DEFAULT);
-    
+    objectStorageMaxThreads = conf.getInt(
+            DFS_CLIENT_OBJECT_STORAGE_MAX_THREADS_KEY,
+            DFS_CLIENT_OBJECT_STORAGE_MAX_THREADS_DEFAULT);
+    objectStorageMaxTasks = conf.getInt(
+            DFS_CLIENT_OBJECT_STORAGE_MAX_TASKS_KEY,
+            DFS_CLIENT_OBJECT_STORAGE_MAX_TASKS_DEFAULT);
+    objectStorageBucketRegion = conf.get(
+            DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY,
+            null);
+    if(objectStorageBucketRegion == null) {
+      throw new IllegalArgumentException("null object storage bucket region");
+    }
     final boolean byteArrayManagerEnabled = conf.getBoolean(
         HdfsClientConfigKeys.Write.ByteArrayManager.ENABLED_KEY,
         HdfsClientConfigKeys.Write.ByteArrayManager.ENABLED_DEFAULT);
@@ -508,6 +522,18 @@ public class DfsClientConf {
 
   public int getObjectStorageChunkSize() {
     return objectStorageChunkSize;
+  }
+
+  public int getObjectStorageMaxThreads() {
+    return objectStorageMaxThreads;
+  }
+
+  public int getObjectStorageMaxTasks() {
+    return objectStorageMaxTasks;
+  }
+
+  public String getObjectStorageBucketRegion() {
+    return objectStorageBucketRegion;
   }
 
   public static class ShortCircuitConf {

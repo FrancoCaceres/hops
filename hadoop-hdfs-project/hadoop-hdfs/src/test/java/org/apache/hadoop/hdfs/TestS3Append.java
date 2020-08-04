@@ -82,6 +82,18 @@ public class TestS3Append {
       assertEquals("Number of bytes read should be " + bytesToRead + " , but is " + bytesRead, bytesRead, bytesToRead);
       assertTrue("The bytes read should be equal to the content of the file",
               equalContent(readContent, 0, bytesRead, totalContent, 128, bytesToRead));
+
+      // Empty append
+      stm = fs.append(file1);
+      stm.close();
+
+      // Read whole
+      fis = fs.open(file1, 1024);
+      readContent = new byte[totalSize];
+      bytesRead = fis.read(readContent, 0, totalSize);
+      assertEquals("Number of bytes read should be " + totalSize + " , but is " + bytesRead, bytesRead, totalSize);
+      assertTrue("The bytes read should be equal to the content of the file",
+              equalContent(readContent, 0, bytesRead, totalContent, 0, totalSize));
     } finally {
       cluster.shutdown();
     }

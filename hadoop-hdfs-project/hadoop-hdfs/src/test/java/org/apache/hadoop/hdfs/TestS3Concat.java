@@ -71,6 +71,21 @@ public class TestS3Concat {
               bytesRead == 512);
       assertTrue("Contents from initial source and from HDFS do not match.",
               equalContent(first3Content, 128, 512, readContent, 0, bytesRead));
+
+      // Concat empty file
+      String emptyFileName = "empty";
+      Path emptyFile = new Path(emptyFileName);
+      fs.mkdirs(emptyFile.getParent());
+      FSDataOutputStream emptyFileOs = fs.create(emptyFile, true, fs.getConf()
+              .getInt(CommonConfigurationKeys.IO_FILE_BUFFER_SIZE_KEY, defaultBufferSize), replication, blockSize);
+      emptyFileOs.close();
+      fs.deleteOnExit(emptyFile);
+      fs.concat(paths[0], new Path[]{emptyFile});
+
+      // Check file size
+      len = fs.getFileStatus(paths[0]).getLen();
+      assertTrue(paths[0] + " should be of size " + fileSize*3 +
+              " but found to be of size " + len, len == fileSize*3);
     } finally {
       cluster.shutdown();
     }

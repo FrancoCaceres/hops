@@ -151,6 +151,10 @@ public class S3ObjectInfoContiguous extends S3Object {
     save();
   }
 
+  public void setNumBytes(long numBytes) throws StorageException, TransactionContextException {
+    setNumBytesNoPersistence(numBytes);
+    save();
+  }
   protected void save()
           throws StorageException, TransactionContextException {
     EntityManager.update(this);

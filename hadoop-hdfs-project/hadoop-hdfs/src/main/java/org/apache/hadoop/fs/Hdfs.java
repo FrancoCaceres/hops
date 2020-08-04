@@ -21,14 +21,14 @@ package org.apache.hadoop.fs;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Options.ChecksumOpt;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclStatus;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.fs.Options.ChecksumOpt;
 import org.apache.hadoop.hdfs.DFSClient;
-import org.apache.hadoop.hdfs.DFSInputStream;
 import org.apache.hadoop.hdfs.DFSOutputStream;
+import org.apache.hadoop.hdfs.DFSUtilClient;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.client.HdfsDataInputStream;
 import org.apache.hadoop.hdfs.client.HdfsDataOutputStream;
@@ -50,12 +50,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import org.apache.hadoop.hdfs.DFSUtilClient;
+import java.util.*;
 
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
@@ -337,9 +332,8 @@ public class Hdfs extends AbstractFileSystem {
   @Override
   public HdfsDataInputStream open(Path f, int bufferSize)
       throws IOException, UnresolvedLinkException {
-    final DFSInputStream dfsis = dfs.open(getUriPath(f),
-      bufferSize, verifyChecksum);
-    return dfs.createWrappedInputStream(dfsis);
+    return dfs.openWrapped(getUriPath(f),
+            bufferSize, verifyChecksum);
   }
 
   @Override

@@ -2100,9 +2100,57 @@
 
   <property>
     <name>dfs.client.object-storage.part-size</name>
-    <value>5242880</value>
+    <value>12582912</value>
     <description>
       Size of part to upload to S3 in bytes. Default is 5MB.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.client.object-storage.max-connections</name>
+    <value>50</value>
+    <description>
+      Maximum number of HTTP connections.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.client.object-storage.max-threads</name>
+    <value>50</value>
+    <description>
+      Maximum number of threads.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.client.object-storage.max-tasks</name>
+    <value>10</value>
+    <description>
+      Maximum number waiting tasks.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.client.object-storage.keep-alive</name>
+    <value>60</value>
+    <description>
+      Thread keep alive time.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.client.object-storage.is-buffer.enabled</name>
+    <value>false</value>
+    <description>
+      Whether to use a buffered input stream to improve latency.
+    </description>
+  </property>
+
+  <property>
+    <name>dfs.client.object-storage.is-buffer.size</name>
+    <value>104857600</value>
+    <description>
+      Buffer size in bytes to use fo the buffered input stream.
     </description>
   </property>
 

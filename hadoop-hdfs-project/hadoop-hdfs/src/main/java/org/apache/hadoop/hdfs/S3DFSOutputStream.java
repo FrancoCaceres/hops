@@ -27,21 +27,19 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.EnumSet;
-import java.util.zip.CheckedOutputStream;
 
 @InterfaceAudience.Private
 public class S3DFSOutputStream extends DFSOutputStream {
   private static final short REPLICATION = 1;
   private final S3UploadOutputStream s3UploadOutputStream;
-  private final CheckedOutputStream checkedOutputStream;
   private static BlockStoragePolicySuite policySuite = BlockStoragePolicySuite.createDefaultSuite();
 
   private S3DFSOutputStream(DFSClient dfsClient, String src, Progressable progress,
                             HdfsFileStatus stat, DataChecksum checksum, boolean isAppend) throws IOException {
     super(dfsClient, src, progress, stat, checksum);
     String s3Key = isAppend ? src.concat(getAppendSuffix()) : src;
-    this.s3UploadOutputStream = new S3UploadOutputStream(dfsClient.getConfiguration(), s3Key);
-    this.checkedOutputStream = new CheckedOutputStream(s3UploadOutputStream, checksum);
+    this.s3UploadOutputStream = new S3UploadOutputStream(dfsClient.getS3(), dfsClient.getConfiguration(),
+            s3Key, dfsClient.getThreadPoolExecutor());
   }
 
   private String getAppendSuffix() {
@@ -137,29 +135,26 @@ public class S3DFSOutputStream extends DFSOutputStream {
 
   @Override
   public void flush() {
-    DFSClient.LOG.warn("flush called in S3DFSOutputStream with no effect.");
   }
 
   @Override
   public void hflush() {
-    DFSClient.LOG.warn("hflush called in S3DFSOutputStream with no effect.");
   }
 
   @Override
   public void hsync() {
-    DFSClient.LOG.warn("hsync called in S3DFSOutputStream with no effect.");
   }
 
   @Override
   public synchronized void write(int b) throws IOException {
     checkClosed();
-    this.checkedOutputStream.write(b);
+    this.s3UploadOutputStream.write(b);
   }
 
   @Override
   public synchronized void write(byte b[], int off, int len) throws IOException {
     checkClosed();
-    this.checkedOutputStream.write(b, off, len);
+    this.s3UploadOutputStream.write(b, off, len);
   }
 
   @Override
@@ -187,7 +182,7 @@ public class S3DFSOutputStream extends DFSOutputStream {
   private void closeInternal() throws IOException {
     TraceScope scope = dfsClient.getTracer().newScope("completeFile");
     try {
-      checkedOutputStream.close();
+      s3UploadOutputStream.close();
       completeFile();
     } finally {
       scope.close();
@@ -237,14 +232,12 @@ public class S3DFSOutputStream extends DFSOutputStream {
   private boolean completeFileInternal() throws IOException {
     boolean fileComplete;
     byte data[] = null;
-    long checksum = checkedOutputStream.getChecksum().getValue();
-    // TODO FCG Check from s3UploadOutputStream if data can be stored in DB
 
     try {
       long size = s3UploadOutputStream.getSize();
       String versionId = s3UploadOutputStream.getVersionId();
       fileComplete =
-              dfsClient.namenode.completeS3(src, dfsClient.clientName, versionId, size, checksum, fileId, data);
+              dfsClient.namenode.completeS3(src, dfsClient.clientName, versionId, size, 0, fileId, data);
     } catch (RemoteException e) {
       IOException nonRetryableExceptions =
               e.unwrapRemoteException(NSQuotaExceededException.class,

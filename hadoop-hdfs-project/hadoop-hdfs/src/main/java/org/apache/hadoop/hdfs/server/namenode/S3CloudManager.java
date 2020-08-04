@@ -35,12 +35,17 @@ import org.apache.hadoop.hdfs.protocol.RangedS3Object;
 import org.apache.hadoop.hdfs.protocol.S3File;
 import org.apache.hadoop.hdfs.server.cloud.S3ObjectInfoContiguous;
 import org.apache.hadoop.util.Time;
+import org.apache.hadoop.util.concurrent.BlockingThreadPoolExecutorService;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import static org.apache.hadoop.hdfs.DFSConfigKeys.*;
 
 public class S3CloudManager extends Thread {
   private static final Logger LOG = Logger.getLogger(S3CloudManager.class);
@@ -52,13 +57,18 @@ public class S3CloudManager extends Thread {
   private DeleteWorker deleteWorker;
   private ProcessableLeader processableLeader;
   private ProcessableWorker processableWorker;
+  private final ExecutorService threadPoolExecutor;
   private final AmazonS3 s3;
+  private final boolean crc32Enabled;
+  private static final long TERABYTE = 1024L * 1024L * 1024L * 1024L;
 
   public S3CloudManager(NameNode nn, Configuration conf) {
+    this.crc32Enabled = conf.getBoolean(DFS_NAMENODE_OBJECT_STORAGE_S3_CRC32_ENABLED_KEY,
+            DFS_NAMENODE_OBJECT_STORAGE_S3_CRC32_ENABLED_DEFAULT);
     this.nn = nn;
     this.conf = conf;
     this.isLeader = false;
-    this.running = true;
+    this.running = !crc32Enabled;
     final String region = conf.get(DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY, null);
     final String bucket = conf.get(DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_KEY, null);
     Preconditions.checkNotNull(region, "S3 bucket region not configured.");
@@ -70,6 +80,11 @@ public class S3CloudManager extends Thread {
     String bucketVersionStatus = s3.getBucketVersioningConfiguration(bucket).getStatus();
     Preconditions.checkArgument(bucketVersionStatus.equals(BucketVersioningConfiguration.ENABLED),
             "Configured S3 bucket is not versioned.");
+    int maxThreads = conf.getInt(DFS_CLIENT_OBJECT_STORAGE_MAX_THREADS_KEY, DFS_CLIENT_OBJECT_STORAGE_MAX_THREADS_DEFAULT);
+    int totalTasks = conf.getInt(DFS_CLIENT_OBJECT_STORAGE_MAX_TASKS_KEY, DFS_CLIENT_OBJECT_STORAGE_MAX_TASKS_DEFAULT);
+    int keepAliveTime = conf.getInt(DFS_CLIENT_OBJECT_STORAGE_KEEP_ALIVE_KEY, DFS_CLIENT_OBJECT_STORAGE_KEEP_ALIVE_DEFAULT);
+    threadPoolExecutor = new BlockingThreadPoolExecutorService(maxThreads, totalTasks, keepAliveTime, TimeUnit.SECONDS,
+            "hopsfs-s3-manager");
   }
 
   @Override
@@ -469,8 +484,8 @@ public class S3CloudManager extends Thread {
 
     ProcessableWorker() {
       lookupInterval = conf.getInt(
-              DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_DELETION_WORKER_LOOKUP_INTERVAL_KEY,
-              DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_DELETION_WORKER_LOOKUP_INTERVAL_DEFAULT);
+              DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_CONSOLIDATION_WORKER_LOOKUP_INTERVAL_KEY,
+              DFS_NAMENODE_OBJECT_STORAGE_OBJECT_MANAGEMENT_CONSOLIDATION_WORKER_LOOKUP_INTERVAL_DEFAULT);
     }
 
     @Override
@@ -568,26 +583,51 @@ public class S3CloudManager extends Thread {
       S3File s3File = new S3File();
       s3File.setSubclassObjects(objs);
 
-      S3UploadOutputStream s3UploadOutputStream = new S3UploadOutputStream(conf, finalKey);
+      S3UploadOutputStream s3UploadOutputStream = new S3UploadOutputStream(s3, conf, finalKey, threadPoolExecutor);
       byte[] buf = new byte[BUFFER_SIZE];
       long fullSize = 0;
       for(RangedS3Object rangedS3Object : s3File.getObjectsInFullRange()) {
         fullSize += rangedS3Object.getNumBytes();
-        S3DownloadInputStream s3DownloadInputStream = new S3DownloadInputStream(rangedS3Object);
+      }
+
+      HopsTransactionalRequestHandler handler;
+
+      if(fullSize > 5 * TERABYTE) {
+        handler = new HopsTransactionalRequestHandler(HDFSOperationType.REPLACE_S3_OBJECTS) {
+          @Override
+          public void acquireLock(TransactionLocks locks) {
+            LockFactory lf = LockFactory.getInstance();
+            INodeIdentifier iNodeIdentifier = new INodeIdentifier(processable.getInodeId());
+            locks.add(lf.getIndividualINodeLock(TransactionLockTypes.INodeLockType.WRITE, iNodeIdentifier))
+                    .add(lf.getS3ObjectLock());
+          }
+
+          @Override
+          public Object performTask() throws IOException {
+            S3ProcessableDataAccess<S3Processable> procDa = getProcessableDataAccess();
+            procDa.delete(processable);
+            LOG.info("Skipping processable because it's larger than 5TB (S3 limit): " + processable);
+            return null;
+          }
+        };
+        handler.handle();
+      }
+
+      for(RangedS3Object rangedS3Object : s3File.getObjectsInFullRange()) {
+        fullSize += rangedS3Object.getNumBytes();
+        S3DownloadInputStream s3DownloadInputStream = new S3DownloadInputStream(s3, conf, threadPoolExecutor, rangedS3Object);
         IOUtils.copyLarge(s3DownloadInputStream, s3UploadOutputStream, buf);
       }
       s3UploadOutputStream.close();
 
-      // TODO FCG: implement checksum
       final S3ObjectInfoContiguous fullObject = nn.getNamesystem().createS3Object(
               processable.getInodeId(), finalKey, s3UploadOutputStream.getVersionId(), fullSize, 0, false);
 
       final long processableSize = fullSize;
-      HopsTransactionalRequestHandler handler = new HopsTransactionalRequestHandler(HDFSOperationType.REPLACE_S3_OBJECTS) {
+      handler = new HopsTransactionalRequestHandler(HDFSOperationType.REPLACE_S3_OBJECTS) {
         @Override
         public void acquireLock(TransactionLocks locks) {
           LockFactory lf = LockFactory.getInstance();
-          // TODO FCG: WRITE or WRITE_ON_TARGET_AND_PARENT
           INodeIdentifier iNodeIdentifier = new INodeIdentifier(processable.getInodeId());
           locks.add(lf.getIndividualINodeLock(TransactionLockTypes.INodeLockType.WRITE, iNodeIdentifier))
                   .add(lf.getS3ObjectLock());
@@ -595,7 +635,6 @@ public class S3CloudManager extends Thread {
 
         @Override
         public Object performTask() throws IOException {
-          // TODO FCG: Check if object list is empty (deleted inode)
           S3ObjectInfoDataAccess<S3ObjectInfoContiguous> da = getObjectDataAccess();
           List<S3ObjectInfoContiguous> currentObjects = da.findByInodeId(processable.getInodeId());
           long currentSize = 0;

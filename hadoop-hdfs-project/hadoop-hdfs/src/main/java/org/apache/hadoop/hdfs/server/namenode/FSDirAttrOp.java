@@ -41,24 +41,17 @@ import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.fs.UnresolvedLinkException;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.BlockStoragePolicy;
-import org.apache.hadoop.hdfs.protocol.HdfsConstants;
-import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
-import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
+import org.apache.hadoop.hdfs.protocol.*;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.util.EnumCounters;
+import org.apache.hadoop.ipc.NotALeaderException;
 import org.apache.hadoop.security.AccessControlException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Iterator;
 
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_ACCESSTIME_PRECISION_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_QUOTA_BY_STORAGETYPE_ENABLED_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_STORAGE_POLICY_ENABLED_KEY;
-import org.apache.hadoop.hdfs.protocol.HdfsConstantsClient;
-import org.apache.hadoop.ipc.NotALeaderException;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.*;
 
 public class FSDirAttrOp {
 
@@ -89,6 +82,7 @@ public class FSDirAttrOp {
                     getFSNamesystem().getSubTreeLockPathPrefix(src), false));
           }
           locks.add(il).add(lf.getBlockLock());
+          locks.add(lf.getS3ObjectLock());
           locks.add(lf.getAcesLock());
           locks.add(lf.getEZLock());
           locks.add(lf.getXAttrLock(FSDirXAttrOp.XATTR_FILE_ENCRYPTION_INFO));
@@ -153,6 +147,7 @@ public class FSDirAttrOp {
                     getFSNamesystem().getSubTreeLockPathPrefix(src), false));
               }
               locks.add(il).add(lf.getBlockLock()).add(lf.getAcesLock());
+              locks.add(lf.getS3ObjectLock());
               locks.add(lf.getEZLock());
               locks.add(lf.getXAttrLock(FSDirXAttrOp.XATTR_FILE_ENCRYPTION_INFO));
             }
@@ -217,6 +212,7 @@ public class FSDirAttrOp {
             .setNameNodeID(fsd.getFSNamesystem().getNamenodeId())
             .setActiveNameNodes(fsd.getFSNamesystem().getNameNode().getActiveNameNodes().getActiveNodes());
         locks.add(il).add(lf.getBlockLock());
+        locks.add(lf.getS3ObjectLock());
         locks.add(lf.getAcesLock());
         locks.add(lf.getEZLock());
         locks.add(lf.getXAttrLock(FSDirXAttrOp.XATTR_FILE_ENCRYPTION_INFO));
@@ -445,6 +441,7 @@ public class FSDirAttrOp {
               .setIgnoredSTOInodes(fileTree.getSubtreeRootId().getInodeId())
               .setIgnoredSTOInodes(fileTree.getSubtreeRootId().getInodeId());
           locks.add(il).add(lf.getBlockLock());
+          locks.add(lf.getS3ObjectLock());
         }
 
         @Override

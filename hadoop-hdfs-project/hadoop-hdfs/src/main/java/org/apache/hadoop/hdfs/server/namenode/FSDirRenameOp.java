@@ -279,6 +279,7 @@ class FSDirRenameOp {
         locks.add(il)
             .add(lf.getBlockLock())
             .add(lf.getBlockRelated(BLK.RE, BLK.UC, BLK.IV, BLK.CR, BLK.ER, BLK.PE, BLK.UR));
+        locks.add(lf.getS3ObjectLock());
         if (!isUsingSubTreeLocks) {
           locks.add(lf.getLeaseLock(LockType.WRITE))
               .add(lf.getLeasePathLock(LockType.READ_COMMITTED));
@@ -564,6 +565,7 @@ class FSDirRenameOp {
             .add(lf.getBlockLock())
             .add(lf.getBlockRelated(BLK.RE, BLK.CR, BLK.UC, BLK.UR, BLK.IV,
                 BLK.PE, BLK.ER));
+        locks.add(lf.getS3ObjectLock());
         if (fsd.isQuotaEnabled()) {
           locks.add(lf.getQuotaUpdateLock(true, src, dst));
         }

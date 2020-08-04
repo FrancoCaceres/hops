@@ -271,6 +271,9 @@ public class DistributedFileSystem extends FileSystem {
       @Override
       public FSDataInputStream doCall(final Path p)
           throws IOException, UnresolvedLinkException {
+        if(dfs.isObjectStorageEnabled()) {
+          return dfs.openS3Wrapped(getPathName(p), bufferSize, verifyChecksum);
+        }
         return dfs.openWrapped(getPathName(p), bufferSize, verifyChecksum);
       }
       @Override

@@ -17,6 +17,11 @@
  */
 package org.apache.hadoop.hdfs;
 
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
@@ -84,6 +89,7 @@ import org.apache.hadoop.util.DataChecksum;
 import org.apache.hadoop.util.DataChecksum.Type;
 import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.util.Time;
+import org.apache.hadoop.util.concurrent.BlockingThreadPoolExecutorService;
 import org.apache.htrace.core.TraceScope;
 import org.apache.htrace.core.Tracer;
 
@@ -92,6 +98,7 @@ import java.io.*;
 import java.net.*;
 import java.security.GeneralSecurityException;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -147,6 +154,9 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
   private final CachingStrategy defaultReadCachingStrategy;
   private final CachingStrategy defaultWriteCachingStrategy;
   private final ClientContext clientContext;
+
+  private static ExecutorService threadPoolExecutor; // for object storage upload parallelization
+  private static AmazonS3 s3;
 
   private static final DFSHedgedReadMetrics HEDGED_READ_METRIC =
       new DFSHedgedReadMetrics();
@@ -315,6 +325,35 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     this.saslClient = new SaslDataTransferClient(
       conf, DataTransferSaslUtil.getSaslPropertiesResolver(conf),
       TrustedChannelResolver.getInstance(conf), nnFallbackToSimpleAuth);
+
+    if(isObjectStorageEnabled()) {
+      initS3();
+    }
+  }
+
+  private void initS3() {
+    if(threadPoolExecutor != null) {
+      return;
+    }
+    String bucketRegion = conf.get(DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY, null);
+    Preconditions.checkNotNull(bucketRegion, "S3 bucket region not provided in configuration");
+
+    int maxConnections = conf.getInt(DFS_CLIENT_OBJECT_STORAGE_MAX_CONNECTIONS_KEY,
+            DFS_CLIENT_OBJECT_STORAGE_MAX_CONNECTIONS_DEFAULT);
+    s3 = AmazonS3ClientBuilder.standard()
+            .withClientConfiguration(new ClientConfiguration().withMaxConnections(maxConnections))
+            .withCredentials(new EnvironmentVariableCredentialsProvider())
+            .withRegion(Regions.fromName(bucketRegion))
+            .build();
+
+    int maxThreads = conf.getInt(DFS_CLIENT_OBJECT_STORAGE_MAX_THREADS_KEY, DFS_CLIENT_OBJECT_STORAGE_MAX_THREADS_DEFAULT);
+    int totalTasks = conf.getInt(DFS_CLIENT_OBJECT_STORAGE_MAX_TASKS_KEY, DFS_CLIENT_OBJECT_STORAGE_MAX_TASKS_DEFAULT);
+    int keepAliveTime = conf.getInt(DFS_CLIENT_OBJECT_STORAGE_KEEP_ALIVE_KEY, DFS_CLIENT_OBJECT_STORAGE_KEEP_ALIVE_DEFAULT);
+    threadPoolExecutor = new BlockingThreadPoolExecutorService(maxThreads,
+            totalTasks, keepAliveTime, TimeUnit.SECONDS,
+            "hopsfs-s3-client");
+    LOG.info(String.format("Created static thread pool executor with:maxThreads=%d,totalTasks=%d,keepAlive=%d",
+            maxThreads, totalTasks, keepAliveTime));
   }
   
   /**
@@ -1157,13 +1196,31 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     }
   }
 
+  public FSDataInputStream openS3Wrapped(String src, int buffersize, boolean verifyChecksum) throws IOException {
+    InputStream is;
+    final FileEncryptionInfo feInfo;
+    boolean bufferedInputStreamEnabled = conf.getBoolean(
+            DFS_CLIENT_OBJECT_STORAGE_IS_BUFFER_ENABLED_KEY,
+            DFS_CLIENT_OBJECT_STORAGE_IS_BUFFER_ENABLED_DEFAULT);
+    S3DFSInputStream s3is = openS3(src, buffersize, verifyChecksum);
+    feInfo = s3is.getFileEncryptionInfo();
+    is = s3is;
+
+    if (feInfo != null) {
+      // File is encrypted, wrap the stream in a crypto stream.
+      // Currently only one version, so no special logic based on the version #
+      getCryptoProtocolVersion(feInfo);
+      final CryptoCodec codec = getCryptoCodec(conf, feInfo);
+      final KeyVersion decrypted = decryptEncryptedDataEncryptionKey(feInfo);
+      is = new CryptoInputStream(is, codec, decrypted.getMaterial(),
+              feInfo.getIV());
+    }
+    return new FSDataInputStream(is);
+  }
+
   public HdfsDataInputStream openWrapped(String src, int buffersize, boolean verifyChecksum)
           throws IOException, UnresolvedPathException {
-    if(isObjectStorageEnabled()) {
-      return createWrappedInputStream(openS3(src, buffersize, verifyChecksum));
-    } else {
-      return createWrappedInputStream(open(src, buffersize, verifyChecksum));
-    }
+    return createWrappedInputStream(open(src, buffersize, verifyChecksum));
   }
 
   /**
@@ -1344,7 +1401,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     return result;
   }
 
-  private boolean isObjectStorageEnabled() {
+  public boolean isObjectStorageEnabled() {
     return this.conf.getBoolean(DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_ENABLED_KEY, false);
   }
 
@@ -3131,5 +3188,13 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
       return false;
     }
   
+  }
+
+  public ExecutorService getThreadPoolExecutor() {
+    return threadPoolExecutor;
+  }
+
+  public AmazonS3 getS3() {
+    return s3;
   }
 }

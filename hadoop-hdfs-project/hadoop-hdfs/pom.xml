@@ -38,6 +38,12 @@ http://maven.apache.org/xsd/maven-4.0.0.xsd">
   </properties>
 
   <dependencies>
+    <!-- https://mvnrepository.com/artifact/com.github.sarveswaran-m/util.concurrent.blockingMap -->
+    <dependency>
+      <groupId>com.github.sarveswaran-m</groupId>
+      <artifactId>util.concurrent.blockingMap</artifactId>
+      <version>0.91</version>
+    </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-s3</artifactId>
