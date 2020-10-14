@@ -527,6 +527,12 @@ public class S3CloudManager extends Thread {
 
     private void processScheduled(S3Processable processable) throws IOException {
         INode inode = INodeUtil.getNode(processable.getInodeId(), false);
+        if(inode == null) {
+          S3ProcessableDataAccess<S3Processable> procDa = getProcessableDataAccess();
+          procDa.delete(processable);
+          LOG.info("Skipping and deleting processable because the inode no longer exists: " + processable);
+          return;
+        }
         if(inode.isFile()) {
           LOG.info("About to process file: " + processable);
           processScheduledFile(processable, (INodeFile)inode);
