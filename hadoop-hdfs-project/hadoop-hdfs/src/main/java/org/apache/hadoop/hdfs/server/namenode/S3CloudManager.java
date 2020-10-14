@@ -626,8 +626,10 @@ public class S3CloudManager extends Thread {
       }
       s3UploadOutputStream.close();
 
+      final String finalVersionId = s3UploadOutputStream.getVersionId();
       final S3ObjectInfoContiguous fullObject = nn.getNamesystem().createS3Object(
               processable.getInodeId(), finalKey, s3UploadOutputStream.getVersionId(), fullSize, 0, false);
+      final String finalBucket = conf.get(DFSConfigKeys.DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_KEY, null);
 
       final long processableSize = fullSize;
       final long parentId = file.getParentId();
@@ -651,12 +653,11 @@ public class S3CloudManager extends Thread {
             currentSize += obj.getNumBytes();
           }
 
-          // TODO FCG Delete created object upon abort
-
           if(currentSize != processableSize) {
             LOG.info("Abortin" +
                     "g processable " + processable + " because the current state of the inode is different from" +
                     " that on which the processing was based: current size is different from processed size.");
+            deleteObjectBestEffort(finalBucket, finalKey, finalVersionId);
             return null;
           }
 
@@ -664,6 +665,7 @@ public class S3CloudManager extends Thread {
           if(currentINode == null) {
             LOG.info("Aborting processable " + processable + " because the current state of the inode is different from" +
                     " that on which the processing was based: inode not found.");
+            deleteObjectBestEffort(finalBucket, finalKey, finalVersionId);
             return null;
           }
           final String currentKey = currentINode.getFullPathName();
@@ -671,6 +673,7 @@ public class S3CloudManager extends Thread {
           if(!finalKey.equals(currentKey)) {
             LOG.info("Aborting processable " + processable + " because the current state of the inode is different from" +
                     " that on which the processing was based: current path is different from processed path.");
+            deleteObjectBestEffort(finalBucket, finalKey, finalVersionId);
             return null;
           }
 
@@ -684,6 +687,15 @@ public class S3CloudManager extends Thread {
         }
       };
       handler.handle();
+    }
+
+    private void deleteObjectBestEffort(String bucket, String key, String version) {
+      DeleteVersionRequest dvr =
+              new DeleteVersionRequest(bucket, key, version);
+      try {
+        s3.deleteVersion(dvr);
+      } catch(Exception e) {
+      }
     }
 
     private List<S3Processable> getScheduledProcessables() throws IOException {
