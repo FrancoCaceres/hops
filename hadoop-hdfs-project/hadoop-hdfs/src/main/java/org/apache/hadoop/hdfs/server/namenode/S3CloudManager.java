@@ -666,6 +666,10 @@ public class S3CloudManager extends Thread {
             LOG.info("Aborting processable " + processable + " because the current state of the inode is different from" +
                     " that on which the processing was based: inode not found.");
             deleteObjectBestEffort(finalBucket, finalKey, finalVersionId);
+
+            S3ProcessableDataAccess<S3Processable> procDa = getProcessableDataAccess();
+            procDa.delete(processable);
+            LOG.info("Completed processable: " + processable);
             return null;
           }
           final String currentKey = currentINode.getFullPathName();
