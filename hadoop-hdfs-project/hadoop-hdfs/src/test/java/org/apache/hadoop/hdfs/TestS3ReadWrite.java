@@ -151,7 +151,7 @@ public class TestS3ReadWrite {
     conf.setBoolean(DFS_NAMENODE_OBJECT_STORAGE_ENABLED_KEY, true);
     conf.set(DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_KEY, "francohopsfss3");
     conf.set(DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY, "us-east-2");
-    conf.setBoolean(DFS_NAMENODE_OBJECT_STORAGE_S3_CRC32_ENABLED_KEY, true);
+    conf.setBoolean(DFS_NAMENODE_OBJECT_STORAGE_S3_CRC32_ENABLED_KEY, false);
     MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf).checkDataNodeHostConfig(true).build();
     FileSystem fs = cluster.getFileSystem();
 
@@ -237,7 +237,7 @@ public class TestS3ReadWrite {
     conf.setBoolean(DFS_NAMENODE_OBJECT_STORAGE_ENABLED_KEY, true);
     conf.set(DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_KEY, "francohopsfss3");
     conf.set(DFS_NAMENODE_OBJECT_STORAGE_S3_BUCKET_REGION_KEY, "us-east-2");
-    conf.setBoolean(DFS_NAMENODE_OBJECT_STORAGE_S3_CRC32_ENABLED_KEY, true);
+    conf.setBoolean(DFS_NAMENODE_OBJECT_STORAGE_S3_CRC32_ENABLED_KEY, false);
     MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf).checkDataNodeHostConfig(true).build();
     FileSystem fs = cluster.getFileSystem();
 

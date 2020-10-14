@@ -1,5 +1,6 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.regions.Regions;
@@ -375,6 +376,11 @@ public class S3CloudManager extends Thread {
         try {
           s3.deleteVersion(dvr);
         } catch(SdkClientException sce) {
+          if(sce instanceof AmazonServiceException) {
+            if(((AmazonServiceException)sce).getStatusCode() == 404)
+            successfullyDeletedFromS3.add(deletable);
+            continue;
+          }
           LOG.warn("Failed to delete from S3: " + deletable.toString());
           continue;
         }
@@ -578,8 +584,7 @@ public class S3CloudManager extends Thread {
       objs.sort(S3ObjectInfoContiguous.Order.ByS3ObjectIndex);
 
       LOG.info("About to process processable: " + processable);
-
-      String finalKey = FSDirectory.getFullPathNameNoTransaction(file);
+      final String finalKey = FSDirectory.getFullPathNameNoTransaction(file);
       S3File s3File = new S3File();
       s3File.setSubclassObjects(objs);
 
@@ -611,6 +616,7 @@ public class S3CloudManager extends Thread {
           }
         };
         handler.handle();
+        return;
       }
 
       for(RangedS3Object rangedS3Object : s3File.getObjectsInFullRange()) {
@@ -624,6 +630,9 @@ public class S3CloudManager extends Thread {
               processable.getInodeId(), finalKey, s3UploadOutputStream.getVersionId(), fullSize, 0, false);
 
       final long processableSize = fullSize;
+      final long parentId = file.getParentId();
+      final long partitionId = file.getPartitionId();
+      final String name = file.getName();
       handler = new HopsTransactionalRequestHandler(HDFSOperationType.REPLACE_S3_OBJECTS) {
         @Override
         public void acquireLock(TransactionLocks locks) {
@@ -642,9 +651,26 @@ public class S3CloudManager extends Thread {
             currentSize += obj.getNumBytes();
           }
 
+          // TODO FCG Delete created object upon abort
+
           if(currentSize != processableSize) {
-            LOG.info("Aborting processable " + processable + " because the current state of the inode is different from" +
+            LOG.info("Abortin" +
+                    "g processable " + processable + " because the current state of the inode is different from" +
                     " that on which the processing was based: current size is different from processed size.");
+            return null;
+          }
+
+          INode currentINode = getInodeDataAccess().findInodeByNameParentIdAndPartitionIdPK(name, parentId, partitionId);
+          if(currentINode == null) {
+            LOG.info("Aborting processable " + processable + " because the current state of the inode is different from" +
+                    " that on which the processing was based: inode not found.");
+            return null;
+          }
+          final String currentKey = currentINode.getFullPathName();
+
+          if(!finalKey.equals(currentKey)) {
+            LOG.info("Aborting processable " + processable + " because the current state of the inode is different from" +
+                    " that on which the processing was based: current path is different from processed path.");
             return null;
           }
 
